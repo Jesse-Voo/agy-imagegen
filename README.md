@@ -164,7 +164,7 @@ Just ask:
 & $gen -Logout    # remove the saved key
 ```
 
-This is a key-based sign-in: OpenAI does not offer a "Sign in with ChatGPT" flow for third-party tools to the Images API, so the script never touches Codex's or ChatGPT's own tokens. The key is encrypted with Windows DPAPI (readable only by your Windows user) in `%APPDATA%gy-imagegen\openai.key`. For a piped sign-in, send the key on stdin: `$key | & $gen -Login`.
+This is a key-based sign-in: OpenAI does not offer a "Sign in with ChatGPT" flow for third-party tools to the Images API, so the script never touches Codex's or ChatGPT's own tokens. The key is encrypted with Windows DPAPI (readable only by your Windows user) in `%APPDATA%\agy-imagegen\openai.key`. For a piped sign-in, send the key on stdin: `$key | & $gen -Login`.
 
 ### From PowerShell
 
