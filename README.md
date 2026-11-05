@@ -4,7 +4,7 @@
 
 # agy-imagegen
 
-**Give Claude Code an `image-generation` skill, powered by Gemini through the Antigravity CLI.**
+**Give Claude Code and Codex an `image-generation` skill, powered by Gemini through the Antigravity CLI.**
 
 Ask for an image in plain English. Get a file on disk.
 
@@ -18,7 +18,7 @@ Ask for an image in plain English. Get a file on disk.
 
 ## What it does
 
-`agy-imagegen` lets Claude Code (or any MCP client) generate images with Gemini by driving Google's [Antigravity CLI](https://antigravity.google) (`agy`) in the background:
+`agy-imagegen` lets Claude Code, Codex (or any MCP client) generate images with Gemini by driving Google's [Antigravity CLI](https://antigravity.google) (`agy`) in the background:
 
 > *"Make an image of a red fox in a snowy forest, watercolor style."*
 
@@ -46,7 +46,7 @@ This project avoids that: agy only generates the image, and the wrapper script d
 
 - Windows 10/11 with PowerShell 5.1+ (or PowerShell 7)
 - The [Antigravity CLI](https://antigravity.google) (`agy`), installed **and signed in** (run `agy` once interactively to log in)
-- [Claude Code](https://claude.com/claude-code) (for the skill) and/or Node.js 18+ (only for the optional MCP server)
+- [Claude Code](https://claude.com/claude-code) or [Codex](https://developers.openai.com/codex) (for the skill) and/or Node.js 18+ (only for the optional MCP server)
 
 ## Install
 
@@ -59,13 +59,28 @@ This project avoids that: agy only generates the image, and the wrapper script d
 
 Then just ask Claude for an image. The `image-generation` skill triggers automatically.
 
+### As a Codex plugin
+
+```bash
+codex plugin marketplace add Jesse-Voo/agy-imagegen
+```
+
+Then restart Codex, open the Plugins directory, pick **agy-imagegen** from this marketplace and install it. To enable it for one project instead, add this to that repo's `.codex/config.toml`:
+
+```toml
+[plugins."agy-imagegen@agy-imagegen"]
+enabled = true
+```
+
+> The Codex manifest follows OpenAI's published plugin spec, but I have not been able to test it inside Codex yet. If the install fails, please open an issue.
+
 ### As a plain skill
 
 Copy the skill folder into your Claude Code skills directory:
 
 ```powershell
 git clone https://github.com/Jesse-Voo/agy-imagegen
-Copy-Item -Recurse agy-imagegen\skills\image-generation $HOME\.claude\skills\
+Copy-Item -Recurse agy-imagegen\plugins\agy-imagegen\skills\image-generation $HOME\.claude\skills\
 ```
 
 ### On claude.ai
@@ -77,7 +92,7 @@ claude.ai skills run in a cloud sandbox that has neither your PC nor `agy`, so t
 For clients that speak MCP but not skills:
 
 ```powershell
-cd agy-imagegen\mcp
+cd agy-imagegen\plugins\agy-imagegen\mcp
 npm install
 claude mcp add generate-image -- node "$PWD\index.js"
 ```
@@ -86,7 +101,7 @@ This exposes one tool, `generate_image(description, output_path?)`, which runs t
 
 ## Usage
 
-### From Claude
+### From Claude Code or Codex
 
 Just ask:
 
@@ -97,13 +112,13 @@ Just ask:
 
 ```powershell
 # Save to the default folder, auto-named
-.\skills\image-generation\scripts\generate-image.ps1 -Description "a red fox in a snowy forest, watercolor style"
+.\plugins\agy-imagegen\skills\image-generation\scripts\generate-image.ps1 -Description "a red fox in a snowy forest, watercolor style"
 
 # Save to a specific file (format follows the extension)
-.\skills\image-generation\scripts\generate-image.ps1 -Description "a neon city skyline" -OutputPath "$HOME\Pictures\city.jpg"
+.\plugins\agy-imagegen\skills\image-generation\scripts\generate-image.ps1 -Description "a neon city skyline" -OutputPath "$HOME\Pictures\city.jpg"
 
 # Save into a folder, auto-named
-.\skills\image-generation\scripts\generate-image.ps1 -Description "a paper boat" -OutputPath "$HOME\Desktop"
+.\plugins\agy-imagegen\skills\image-generation\scripts\generate-image.ps1 -Description "a paper boat" -OutputPath "$HOME\Desktop"
 ```
 
 The saved path is printed as the last line of output.
@@ -128,12 +143,16 @@ The saved path is printed as the last line of output.
 
 ```text
 agy-imagegen/
-├── .claude-plugin/          # plugin + marketplace manifests
-├── skills/image-generation/
-│   ├── SKILL.md             # tells Claude when and how to use it
-│   └── scripts/generate-image.ps1
-├── mcp/                     # optional MCP server wrapping the script
-└── assets/                  # logo and example output
+├── .claude-plugin/marketplace.json   # Claude Code marketplace
+├── .agents/plugins/marketplace.json  # Codex marketplace
+├── plugins/agy-imagegen/             # the plugin (shared by both)
+│   ├── .claude-plugin/plugin.json    # Claude Code manifest
+│   ├── .codex-plugin/plugin.json     # Codex manifest
+│   ├── skills/image-generation/
+│   │   ├── SKILL.md                  # tells the agent when and how to use it
+│   │   └── scripts/generate-image.ps1
+│   └── mcp/                          # optional MCP server wrapping the script
+└── assets/                           # logo and example output
 ```
 
 ## Troubleshooting
