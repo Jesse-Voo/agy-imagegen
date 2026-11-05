@@ -35,6 +35,17 @@ Ask for an image in plain English. Get a file on disk.
 
 If you don't say where to save, it picks a sensible default folder and a readable filename, so the image never ends up lost in an internal cache.
 
+### New in 1.2
+
+- **Cross-model in every agent:** in Antigravity the skill gives you the OpenAI model, in Codex it gives you Gemini (native tools stay available on request).
+- **`openai` backend:** use an `OPENAI_API_KEY` directly, no Codex needed (`OPENAI_IMAGE_MODEL`, `OPENAI_BASE_URL` optional).
+- **`local` backend:** any OpenAI-compatible local image server via `IMAGEGEN_LOCAL_URL`.
+- **`auto` backend:** let the agent pick among the backends you enable with `IMAGEGEN_BACKENDS` (e.g. `agy,openai`).
+- **Bulk:** `-Count 4` or `-BatchFile prompts.txt`.
+- **Reference images:** `-Reference "a.png|b.jpg"` for inspiration or edits.
+
+Tested: agy backend, bulk, `auto`, reference images and the MCP tool. Untested: the `openai` backend against the real API (no key available here), `codex` and a real local server.
+
 ## How it works
 
 The helper script, `generate-image.ps1`, has three modes:

@@ -11,6 +11,9 @@ Turns a text description into an image file. Windows + PowerShell. Two image bac
 | --- | --- | --- |
 | `agy` | Gemini (via the Antigravity CLI) | `agy` installed and signed in |
 | `codex` | OpenAI `gpt-image-2` (via the Codex CLI) | `codex` installed and signed in |
+| `openai` | OpenAI Images API, no Codex needed | `OPENAI_API_KEY` set |
+| `local` | A local OpenAI-compatible image server | `IMAGEGEN_LOCAL_URL` set |
+| `auto` | Picks one of the above for you | `IMAGEGEN_BACKENDS` limits the choice (e.g. `agy,openai`) |
 
 The helper script is `scripts/generate-image.ps1`, next to this file. Below, `<skill dir>` means this skill's folder.
 
@@ -24,27 +27,26 @@ Pick the matching flow. Never call a backend that is the agent you are already r
 
 ### A. You are Antigravity (agy)
 
-Use your **own built-in `generate_image` tool**. Do not shell out to `agy` again.
+You already have Gemini natively, so this skill exists to give you the **OpenAI** model too.
 
-1. Generate the image with your tool, using a vivid, specific prompt (subject, style, composition).
-2. If the user named a save location, or you need the file outside your artifacts folder, copy it there with the helper. Your tool result tells you the generated file's path.
+- Run `-Check`. If `codex` or `openai` is available, use the helper with `-Backend openai` (API key) or `-Backend codex` (Codex sign-in). This is the default for this skill in agy, unless the user says "use Gemini" / "use your own".
+- If the user asks for Gemini, or no OpenAI backend is available, use your **own built-in `generate_image` tool** and then, if needed, place the file with `-FromFile "<path your tool reported>" -Description "..." [-OutputPath "..."]`.
+- Never call `-Backend agy` from inside agy.
 
 ```powershell
-powershell.exe -NoProfile -File "<skill dir>\scripts\generate-image.ps1" -FromFile "<path your tool reported>" -Description "<short description>" [-OutputPath "<where to save>"]
+powershell.exe -NoProfile -File "<skill dir>\scripts\generate-image.ps1" -Backend <openai|codex> -Description "<what to draw>" [-OutputPath "<where to save>"]
 ```
-
-If the user didn't say where to save, omit `-OutputPath`; see "Where it is saved" below.
 
 ### B. You are Codex
 
-Use your **own built-in image generation** (`$imagegen`, `gpt-image-2`). Do not shell out to `codex` again.
+You already have OpenAI natively, so this skill exists to give you the **Gemini** model too.
 
-1. Generate the image with `$imagegen`, using a vivid, specific prompt.
-2. Find the file Codex produced (its output names the path; otherwise look under `$CODEX_HOME\generated_images`, default `~\.codex\generated_images`).
-3. Save it where the user wants with the helper:
+- Run `-Check`. If `agy` is available, use the helper with `-Backend agy`. This is the default for this skill in Codex, unless the user says "use OpenAI" / "use your own".
+- If the user asks for OpenAI, or agy isn't available, use your **own built-in image generation** (`$imagegen`), find the file (its output names the path; otherwise `$CODEX_HOME\generated_images`) and place it with `-FromFile`.
+- Never call `-Backend codex` from inside Codex.
 
 ```powershell
-powershell.exe -NoProfile -File "<skill dir>\scripts\generate-image.ps1" -FromFile "<path of the generated image>" -Description "<short description>" [-OutputPath "<where to save>"]
+powershell.exe -NoProfile -File "<skill dir>\scripts\generate-image.ps1" -Backend agy -Description "<what to draw>" [-OutputPath "<where to save>"]
 ```
 
 ### C. You are Claude Code (or any agent without its own image tool)
@@ -68,6 +70,12 @@ powershell.exe -NoProfile -File "<skill dir>\scripts\generate-image.ps1" -Backen
 ```
 
 Generation takes roughly 30-90 seconds (Codex can take longer). Allow a timeout of at least 300 seconds when calling the script.
+
+## Bulk, references and auto-choice
+
+- **Bulk:** `-Count 4` makes four variations of one description; `-BatchFile list.txt` makes one image per line. Several images get `-01`, `-02` suffixes and one path is printed per line. Allow ~1 minute per image.
+- **Reference images:** `-Reference "C:\a.png|C:\b.jpg"` passes existing images to the model as inspiration or as the image to edit (all backends).
+- **Letting the AI choose:** `-Backend auto` picks among the backends the user enabled (`IMAGEGEN_BACKENDS`): text, logos, layouts and edits go to OpenAI first, everything else to Gemini first. The chosen backend is printed on stderr; tell the user which was used.
 
 ## Writing the description
 

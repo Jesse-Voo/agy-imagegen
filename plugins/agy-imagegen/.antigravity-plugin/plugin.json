@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "agy-imagegen",
   "displayName": "Image Generation",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Generate images from a text description with Gemini (agy) or OpenAI gpt-image-2 (Codex) and save them exactly where you want.",
   "logo": "./assets/logo.png",
   "suggestedPrompts": [
