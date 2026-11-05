@@ -10,7 +10,7 @@ Turns a text description into an image file. Windows + PowerShell. Two image bac
 | Backend | Model | Needs |
 | --- | --- | --- |
 | `agy` | Gemini (via the Antigravity CLI) | `agy` installed and signed in |
-| `codex` | OpenAI `gpt-image-2` (via the Codex CLI) | `codex` installed and signed in |
+| `codex` | OpenAI `gpt-image-2` (via the Codex CLI) | `codex` installed and signed in. Note: headless `codex exec` exposes no image tool on some setups (seen with ChatGPT sign-in); if it fails with "no image generation tool", use `openai` instead |
 | `openai` | OpenAI Images API, no Codex needed | `OPENAI_API_KEY` set |
 | `local` | A local OpenAI-compatible image server | `IMAGEGEN_LOCAL_URL` set |
 | `auto` | Picks one of the above for you | `IMAGEGEN_BACKENDS` limits the choice (e.g. `agy,openai`) |

@@ -116,6 +116,9 @@ function Find-Codex {
     $all = @(Get-Command codex -All -ErrorAction SilentlyContinue)
     $pick = $all | Where-Object { $_.Source -match '\.(exe|cmd|bat)$' } | Select-Object -First 1
     if ($pick) { return $pick.Source }
+    # The Codex desktop app ships its own CLI that is not on PATH.
+    $app = Join-Path $env:LOCALAPPDATA "Programs\OpenAI\Codex\bin\codex.exe"
+    if (Test-Path $app) { return $app }
     return $null
 }
 
@@ -352,8 +355,15 @@ function Invoke-Codex([string]$Desc) {
     }
 
     # Preferred: the file Codex was told to save here. Fallback: Codex's own generated_images store.
-    $image = Wait-ForImage @($scratch) $started.AddSeconds(-5)
-    if (-not $image) { $image = Wait-ForImage @((Join-Path $codexHome "generated_images")) $started.AddSeconds(-5) -Recurse }
+    # codex exec has already exited, so the file is either there now or never will be:
+    # use a short grace period instead of polling for the full timeout.
+    $saved = $TimeoutSeconds
+    $script:TimeoutSeconds = 6
+    try {
+        $image = Wait-ForImage @($scratch) $started.AddSeconds(-5)
+        if (-not $image) { $image = Wait-ForImage @((Join-Path $codexHome "generated_images")) $started.AddSeconds(-5) -Recurse }
+    }
+    finally { $script:TimeoutSeconds = $saved }
     if (-not $image) {
         $err = if (Test-Path $stderr) { (Get-Content $stderr -Raw) } else { "" }
         $out = if (Test-Path $stdout) { (Get-Content $stdout -Raw) } else { "" }

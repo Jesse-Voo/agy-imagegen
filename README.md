@@ -22,9 +22,9 @@ Ask for an image in plain English. Get a file on disk.
 
 | You are in | Image backend | How |
 | --- | --- | --- |
-| **Claude Code** | **You choose**: Gemini (`agy`) or OpenAI `gpt-image-2` (`codex`) | Claude asks (or uses `IMAGEGEN_BACKEND`) and runs the helper script headlessly |
-| **Antigravity (`agy`)** | Gemini, agy's own image tool | The skill uses agy's built-in tool, then places the file |
-| **Codex** | OpenAI `gpt-image-2`, Codex's own `$imagegen` | The skill uses Codex's built-in tool, then places the file |
+| **Claude Code** | **You choose**: Gemini (`agy`), OpenAI via API key (`openai`), OpenAI via Codex (`codex`), a local server (`local`), or `auto` | Claude asks (or uses `IMAGEGEN_BACKEND`) and runs the helper script headlessly |
+| **Antigravity (`agy`)** | Defaults to **OpenAI** (`openai` or `codex`); Gemini via agy's own tool on request | The skill brings the other model into agy |
+| **Codex** | Defaults to **Gemini** (`agy` backend); Codex's own `$imagegen` on request | The skill brings the other model into Codex |
 
 > *"Make an image of a red fox in a snowy forest, watercolor style."*
 
@@ -44,7 +44,11 @@ If you don't say where to save, it picks a sensible default folder and a readabl
 - **Bulk:** `-Count 4` or `-BatchFile prompts.txt`.
 - **Reference images:** `-Reference "a.png|b.jpg"` for inspiration or edits.
 
-Tested: agy backend, bulk, `auto`, reference images and the MCP tool. Untested: the `openai` backend against the real API (no key available here), `codex` and a real local server.
+**Tested:** the `agy` backend, bulk, `auto`, reference images and the MCP tool.
+
+**Known limitation (Codex backend):** tried with Codex CLI 0.166.0 signed in with a ChatGPT account, headless `codex exec` exposed **no image-generation tool** (it answered that none was available, on three different models), even though the `image_generation` feature flag is on. So the `codex` backend currently fails fast with Codex's own message on that setup. Use the `openai` backend (API key) for OpenAI images instead. Whether `codex exec` can generate images with an API-key sign-in is untested.
+
+**Untested:** the `openai` backend against the real API (no key available here) and a real `local` server.
 
 ## How it works
 
@@ -56,7 +60,11 @@ The helper script, `generate-image.ps1`, has three modes:
 | `-FromFile <path>` | Saves an image another tool already made (agy's or Codex's built-in image tool) to your path, converting format if needed |
 | `-Check` | Reports which backends are installed |
 
-For the **agy** backend it runs `agy -p "<prompt>" --output-format json`, reads the conversation id from the JSON and picks the image up from agy's working folder. For the **codex** backend it runs `codex exec` in a scratch folder, asks Codex's built-in `$imagegen` to save the file there, and falls back to Codex's own generated-images store.
+- **agy:** runs `agy -p "<prompt>" --output-format json`, reads the conversation id from the JSON and picks the image up from agy's working folder.
+- **codex:** runs `codex exec` in a scratch folder, asks Codex's built-in `$imagegen` to save the file there, and falls back to Codex's own generated-images store (see the known limitation above).
+- **openai:** calls the OpenAI Images API (`/images/generations`, or `/images/edits` when you pass reference images) with `OPENAI_API_KEY`.
+- **local:** the same API shape against `IMAGEGEN_LOCAL_URL`, for any OpenAI-compatible local image server.
+- **auto:** picks one of the backends you enabled (`IMAGEGEN_BACKENDS`): text, logos, layouts and edits go to OpenAI first, everything else to Gemini first.
 
 ### Why not just `--dangerously-skip-permissions`?
 
@@ -69,7 +77,9 @@ This project avoids that: the agent only generates the image, and the wrapper sc
 - Windows 10/11 with PowerShell 5.1+ (or PowerShell 7)
 - At least one image backend, installed **and signed in**:
   - [Antigravity CLI](https://antigravity.google) (`agy`) for Gemini. Run `agy` once interactively to log in.
-  - [Codex CLI](https://developers.openai.com/codex) (`codex`) for OpenAI `gpt-image-2`. Image generation counts toward your Codex usage limits.
+  - An `OPENAI_API_KEY` for OpenAI images through the API (the `openai` backend), or
+  - [Codex CLI](https://developers.openai.com/codex) (`codex`, found on `PATH` or in the Codex desktop app's folder); see the known limitation above.
+  - Optionally a local OpenAI-compatible image server (`IMAGEGEN_LOCAL_URL`).
 - An agent to run the skill in: [Claude Code](https://claude.com/claude-code), Codex or Antigravity
 - Node.js 18+ (only for the optional MCP server)
 
@@ -99,16 +109,17 @@ Then just ask Claude for an image. If both `agy` and `codex` are installed and y
 
 ```bash
 codex plugin marketplace add Jesse-Voo/agy-imagegen
+codex plugin add agy-imagegen@agy-imagegen
 ```
 
-Then restart Codex, open the Plugins directory, pick **agy-imagegen** from this marketplace and install it. To enable it for one project instead, add this to that repo's `.codex/config.toml`:
+Then restart Codex. (`codex plugin list` shows what is installed.) To enable it for one project instead, add this to that repo's `.codex/config.toml`:
 
 ```toml
 [plugins."agy-imagegen@agy-imagegen"]
 enabled = true
 ```
 
-> The Codex manifest follows OpenAI's published plugin spec and the Codex backend follows its documented `codex exec` and `$imagegen` behavior, but neither has been tested inside Codex yet. If something fails, please open an issue.
+> The Codex manifest follows OpenAI's published plugin spec; installing it through `codex plugin` has not been tested yet. In Codex the skill brings in Gemini through the `agy` backend, which needs the Antigravity CLI installed and signed in.
 
 ### As a plain skill
 
@@ -174,7 +185,10 @@ The saved path is printed as the last line of output.
 | --- | --- | --- |
 | `-Description` | yes (unless `-FromFile` or `-Check`) | What the image should show. Be specific about subject and style. |
 | `-OutputPath` | no | File path, or an existing folder. `.png`, `.jpg`/`.jpeg`, `.bmp`, `.gif`. Missing folders are created. |
-| `-Backend` | no | `agy` (Gemini) or `codex` (OpenAI). Default: `IMAGEGEN_BACKEND`, else `agy`. |
+| `-Backend` | no | `agy`, `codex`, `openai`, `local` or `auto`. Default: `IMAGEGEN_BACKEND`, else `agy`. |
+| `-Count` | no | Make N variations of `-Description` (1-10). |
+| `-BatchFile` | no | Text file, one description per line (max 20). |
+| `-Reference` | no | Existing image(s) as inspiration or to edit; separate several with `\|`. |
 | `-FromFile` | no | Save an existing image instead of generating one. |
 | `-Check` | no | Print which backends are installed and exit. |
 | `-TimeoutSeconds` | no | Give up after this long. Default `300`. |
@@ -183,11 +197,17 @@ The saved path is printed as the last line of output.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `IMAGEGEN_BACKEND` | `agy` | Default backend: `agy` or `codex` |
+| `IMAGEGEN_BACKEND` | `agy` | Default backend: `agy`, `codex`, `openai`, `local` or `auto` |
+| `IMAGEGEN_BACKENDS` | all available | Backends `auto` may choose from, e.g. `agy,openai` |
+| `OPENAI_API_KEY` | none | Enables the `openai` backend |
+| `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Model for the `openai` backend |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | API base URL |
+| `IMAGEGEN_LOCAL_URL` | none | Base URL of a local OpenAI-compatible image server (enables `local`) |
+| `IMAGEGEN_LOCAL_MODEL` | none | Model name sent to the local server |
 | `AGY_IMAGE_DIR` | `<Pictures>\Generated` | Default save folder when no path is given |
 | `AGY_EXE` | `agy` on `PATH`, else `%LOCALAPPDATA%\agy\bin\agy.exe` | Path to the Antigravity CLI |
 | `AGY_BRAIN_DIR` | `~\.gemini\antigravity-cli\brain` | Where agy keeps generated images |
-| `CODEX_EXE` | `codex` on `PATH` | Path to the Codex CLI |
+| `CODEX_EXE` | `codex` on `PATH`, else the Codex desktop app's CLI | Path to the Codex CLI |
 | `CODEX_HOME` | `~\.codex` | Codex's home folder (fallback image store) |
 
 ## Repository layout
@@ -213,7 +233,8 @@ agy-imagegen/
 | --- | --- |
 | `agy not found` / `codex not found` | Install that CLI, or set `AGY_EXE` / `CODEX_EXE`. Run `-Check` to see what is detected. |
 | `agy returned no usable JSON` | Run `agy` once interactively and sign in. |
-| `No image produced by codex` | Run `codex` once interactively and sign in; confirm your plan includes image generation. |
+| `No image produced by codex` (Codex says it has no image tool) | Headless `codex exec` doesn't expose image generation on every setup. Use `-Backend openai` with an API key instead. |
+| `OPENAI_API_KEY is not set` | Set it in your environment to use the `openai` backend. |
 | `No image appeared in ...` | The backend answered but didn't generate an image. Try rewording the description. |
 | agy generated the image but it isn't at my path | Headless agy can't approve the copy command. Use the interactive session, or call the script directly. |
 | Script blocked by execution policy | Run with `powershell -ExecutionPolicy Bypass -File ...` or adjust your policy. |
