@@ -169,7 +169,7 @@ agy-imagegen/
 
 - Image generation is performed by Google's Gemini through your own Antigravity account; usage and limits are governed by Google's terms.
 - This project is unofficial and is not affiliated with Google or Anthropic.
-- The logo is the [Fluent Emoji](https://github.com/microsoft/fluentui-emoji) framed picture and sparkles (Microsoft, MIT) via [Iconify](https://iconify.design).
+- The logo is the [Tabler Icons](https://tabler.io/icons) `photo-ai` icon (MIT) via [Iconify](https://iconify.design).
 - agy's CLI is young and its flags may change. If something breaks after an update, please open an issue.
 
 ## License
