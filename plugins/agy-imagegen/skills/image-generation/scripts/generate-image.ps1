@@ -95,6 +95,9 @@ param(
     [string]$Reference,
     [string]$FromFile,
     [switch]$Check,
+    [switch]$Login,
+    [switch]$Logout,
+    [switch]$NoVerify,
     [int]$TimeoutSeconds = 300
 )
 
@@ -122,11 +125,34 @@ function Find-Codex {
     return $null
 }
 
+# --- OpenAI sign-in: an API key kept encrypted (Windows DPAPI, this user only) ---------
+$KeyFile = Join-Path $env:APPDATA "agy-imagegen\openai.key"
+
+function Get-OpenAIKey {
+    if ($env:OPENAI_API_KEY) { return $env:OPENAI_API_KEY }
+    if (Test-Path $KeyFile) {
+        try {
+            $sec = (Get-Content $KeyFile -Raw).Trim() | ConvertTo-SecureString
+            $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+            try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
+            finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+        }
+        catch { return $null }
+    }
+    return $null
+}
+
+function Get-OpenAIKeySource {
+    if ($env:OPENAI_API_KEY) { return "OPENAI_API_KEY environment variable" }
+    if (Test-Path $KeyFile) { return "saved sign-in ($KeyFile)" }
+    return $null
+}
+
 function Get-AvailableBackends {
     $list = @()
     if (Find-Agy) { $list += "agy" }
     if (Find-Codex) { $list += "codex" }
-    if ($env:OPENAI_API_KEY) { $list += "openai" }
+    if (Get-OpenAIKey) { $list += "openai" }
     if ($env:IMAGEGEN_LOCAL_URL) { $list += "local" }
     return $list
 }
@@ -140,12 +166,56 @@ function Get-EnabledBackends {
 
 function Say([string]$Text) { [Console]::Error.WriteLine($Text) }
 
+if ($Logout) {
+    if (Test-Path $KeyFile) { Remove-Item $KeyFile -Force; "Signed out: saved OpenAI key removed." }
+    else { "No saved OpenAI sign-in found." }
+    if ($env:OPENAI_API_KEY) { "Note: OPENAI_API_KEY is still set in your environment." }
+    return
+}
+
+if ($Login) {
+    Write-Host "Sign in to OpenAI for image generation."
+    Write-Host "Create or copy an API key at https://platform.openai.com/api-keys (it is shown only once)."
+    if ([Console]::IsInputRedirected) {
+        # Key piped in (e.g. from a secrets manager): read one line from stdin.
+        $plain = ([Console]::In.ReadLine())
+        if ($plain) { $plain = $plain.Trim() }
+    }
+    else {
+        $sec = Read-Host "Paste your OpenAI API key (input hidden)" -AsSecureString
+        $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+        try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
+        finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+    }
+    if (-not $plain -or $plain.Length -lt 20) { Write-Error "That doesn't look like an API key."; exit 1 }
+
+    if (-not $NoVerify) {
+        $base = if ($env:OPENAI_BASE_URL) { $env:OPENAI_BASE_URL.TrimEnd('/') } else { "https://api.openai.com/v1" }
+        try {
+            [void](Invoke-RestMethod -Uri "$base/models" -Headers @{ Authorization = "Bearer $plain" } -TimeoutSec 30)
+        }
+        catch {
+            $code = try { [int]$_.Exception.Response.StatusCode } catch { 0 }
+            if ($code -eq 401) { Write-Error "OpenAI rejected that key (401). Nothing was saved."; exit 1 }
+            Write-Error "Could not verify the key ($($_.Exception.Message)). Nothing was saved. Re-run with -NoVerify to save it anyway."
+            exit 1
+        }
+    }
+    $dir = Split-Path $KeyFile -Parent
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    ($plain | ConvertTo-SecureString -AsPlainText -Force | ConvertFrom-SecureString) | Set-Content $KeyFile -Encoding ASCII
+    $plain = $null
+    "Signed in. Key saved encrypted for this Windows account at $KeyFile."
+    "Use it with: -Backend openai   (sign out any time with -Logout)"
+    return
+}
+
 if ($Check) {
     $a = Find-Agy
     $c = Find-Codex
     "agy:    " + $(if ($a) { "available ($a)" } else { "not found" })
     "codex:  " + $(if ($c) { "available ($c)" } else { "not found" })
-    "openai: " + $(if ($env:OPENAI_API_KEY) { "available (OPENAI_API_KEY set, model " + $(if ($env:OPENAI_IMAGE_MODEL) { $env:OPENAI_IMAGE_MODEL } else { "gpt-image-2" }) + ")" } else { "not configured (set OPENAI_API_KEY)" })
+    "openai: " + $(if (Get-OpenAIKey) { "available (" + (Get-OpenAIKeySource) + ", model " + $(if ($env:OPENAI_IMAGE_MODEL) { $env:OPENAI_IMAGE_MODEL } else { "gpt-image-2" }) + ")" } else { "not signed in (run -Login, or set OPENAI_API_KEY)" })
     "local:  " + $(if ($env:IMAGEGEN_LOCAL_URL) { "available ($($env:IMAGEGEN_LOCAL_URL))" } else { "not configured (set IMAGEGEN_LOCAL_URL)" })
     $def = if ($env:IMAGEGEN_BACKEND) { $env:IMAGEGEN_BACKEND } else { "agy" }
     "default backend: $def"
@@ -418,10 +488,11 @@ function Invoke-ImagesApi([string]$Desc, [string]$Base, [string]$Key, [string]$M
 }
 
 function Invoke-OpenAI([string]$Desc) {
-    if (-not $env:OPENAI_API_KEY) { throw "OPENAI_API_KEY is not set. Set it in your environment to use the openai backend." }
+    $key = Get-OpenAIKey
+    if (-not $key) { throw "Not signed in to OpenAI. Run the script with -Login once (or set OPENAI_API_KEY)." }
     $base = if ($env:OPENAI_BASE_URL) { $env:OPENAI_BASE_URL } else { "https://api.openai.com/v1" }
     $model = if ($env:OPENAI_IMAGE_MODEL) { $env:OPENAI_IMAGE_MODEL } else { "gpt-image-2" }
-    return Invoke-ImagesApi $Desc $base $env:OPENAI_API_KEY $model "OpenAI"
+    return Invoke-ImagesApi $Desc $base $key $model "OpenAI"
 }
 
 function Invoke-Local([string]$Desc) {

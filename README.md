@@ -38,7 +38,7 @@ If you don't say where to save, it picks a sensible default folder and a readabl
 ### New in 1.2
 
 - **Cross-model in every agent:** in Antigravity the skill gives you the OpenAI model, in Codex it gives you Gemini (native tools stay available on request).
-- **`openai` backend:** use an `OPENAI_API_KEY` directly, no Codex needed (`OPENAI_IMAGE_MODEL`, `OPENAI_BASE_URL` optional).
+- **`openai` backend + sign-in:** no Codex needed. Run the script once with `-Login` and paste your OpenAI API key (hidden input, verified against the API, stored encrypted for your Windows account only). `-Logout` removes it. `OPENAI_API_KEY` in the environment also works and takes priority.
 - **`local` backend:** any OpenAI-compatible local image server via `IMAGEGEN_LOCAL_URL`.
 - **`auto` backend:** let the agent pick among the backends you enable with `IMAGEGEN_BACKENDS` (e.g. `agy,openai`).
 - **Bulk:** `-Count 4` or `-BatchFile prompts.txt`.
@@ -48,7 +48,7 @@ If you don't say where to save, it picks a sensible default folder and a readabl
 
 **Known limitation (Codex backend):** tried with Codex CLI 0.166.0 signed in with a ChatGPT account, headless `codex exec` exposed **no image-generation tool** (it answered that none was available, on three different models), even though the `image_generation` feature flag is on. So the `codex` backend currently fails fast with Codex's own message on that setup. Use the `openai` backend (API key) for OpenAI images instead. Whether `codex exec` can generate images with an API-key sign-in is untested.
 
-**Untested:** the `openai` backend against the real API (no key available here) and a real `local` server.
+**Untested:** the `openai` backend against the real API (no key available here; `-Login` storage, read-back, rejection of a bad key and `-Logout` were tested with a dummy value) and a real `local` server.
 
 ## How it works
 
@@ -77,7 +77,7 @@ This project avoids that: the agent only generates the image, and the wrapper sc
 - Windows 10/11 with PowerShell 5.1+ (or PowerShell 7)
 - At least one image backend, installed **and signed in**:
   - [Antigravity CLI](https://antigravity.google) (`agy`) for Gemini. Run `agy` once interactively to log in.
-  - An `OPENAI_API_KEY` for OpenAI images through the API (the `openai` backend), or
+  - An OpenAI API key for OpenAI images through the API (the `openai` backend): sign in once with `-Login`, or set `OPENAI_API_KEY`. Or
   - [Codex CLI](https://developers.openai.com/codex) (`codex`, found on `PATH` or in the Codex desktop app's folder); see the known limitation above.
   - Optionally a local OpenAI-compatible image server (`IMAGEGEN_LOCAL_URL`).
 - An agent to run the skill in: [Claude Code](https://claude.com/claude-code), Codex or Antigravity
@@ -156,6 +156,16 @@ Just ask:
 - *"Draw a cozy cabin at night and save it to `C:\Users\me\Pictures\cabin.png`."*
 - *"Make a pixel-art sword with OpenAI/Codex."* (Claude Code picks the backend you name.)
 
+### Signing in to OpenAI (for the `openai` backend)
+
+```powershell
+& $gen -Login     # paste your API key once (platform.openai.com/api-keys)
+& $gen -Check     # shows: openai: available (saved sign-in ...)
+& $gen -Logout    # remove the saved key
+```
+
+This is a key-based sign-in: OpenAI does not offer a "Sign in with ChatGPT" flow for third-party tools to the Images API, so the script never touches Codex's or ChatGPT's own tokens. The key is encrypted with Windows DPAPI (readable only by your Windows user) in `%APPDATA%gy-imagegen\openai.key`. For a piped sign-in, send the key on stdin: `$key | & $gen -Login`.
+
 ### From PowerShell
 
 ```powershell
@@ -191,6 +201,7 @@ The saved path is printed as the last line of output.
 | `-Reference` | no | Existing image(s) as inspiration or to edit; separate several with `\|`. |
 | `-FromFile` | no | Save an existing image instead of generating one. |
 | `-Check` | no | Print which backends are installed and exit. |
+| `-Login` / `-Logout` | no | Save / remove your OpenAI API key for the `openai` backend (`-NoVerify` skips the check call). |
 | `-TimeoutSeconds` | no | Give up after this long. Default `300`. |
 
 ### Configuration (environment variables, all optional)
@@ -199,7 +210,7 @@ The saved path is printed as the last line of output.
 | --- | --- | --- |
 | `IMAGEGEN_BACKEND` | `agy` | Default backend: `agy`, `codex`, `openai`, `local` or `auto` |
 | `IMAGEGEN_BACKENDS` | all available | Backends `auto` may choose from, e.g. `agy,openai` |
-| `OPENAI_API_KEY` | none | Enables the `openai` backend |
+| `OPENAI_API_KEY` | none | Enables the `openai` backend (overrides a saved `-Login` key) |
 | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Model for the `openai` backend |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | API base URL |
 | `IMAGEGEN_LOCAL_URL` | none | Base URL of a local OpenAI-compatible image server (enables `local`) |
@@ -234,7 +245,7 @@ agy-imagegen/
 | `agy not found` / `codex not found` | Install that CLI, or set `AGY_EXE` / `CODEX_EXE`. Run `-Check` to see what is detected. |
 | `agy returned no usable JSON` | Run `agy` once interactively and sign in. |
 | `No image produced by codex` (Codex says it has no image tool) | Headless `codex exec` doesn't expose image generation on every setup. Use `-Backend openai` with an API key instead. |
-| `OPENAI_API_KEY is not set` | Set it in your environment to use the `openai` backend. |
+| `Not signed in to OpenAI` | Run the script with `-Login` once, or set `OPENAI_API_KEY`. |
 | `No image appeared in ...` | The backend answered but didn't generate an image. Try rewording the description. |
 | agy generated the image but it isn't at my path | Headless agy can't approve the copy command. Use the interactive session, or call the script directly. |
 | Script blocked by execution policy | Run with `powershell -ExecutionPolicy Bypass -File ...` or adjust your policy. |
