@@ -18,7 +18,7 @@ const SCRIPT_PATH = path.resolve(
 
 const server = new McpServer({
   name: "generate-image",
-  version: "1.2.0",
+  version: "1.3.0",
 });
 
 server.registerTool(
@@ -27,7 +27,7 @@ server.registerTool(
     title: "Generate image",
     description:
       "Generate one or more images and save them to disk. Backends: 'agy' (Gemini via Antigravity CLI), " +
-      "'codex' (OpenAI gpt-image-2 via Codex CLI), 'openai' (OpenAI Images API, needs OPENAI_API_KEY), " +
+      "'gemini' (Gemini API / Imagen, needs a key), 'openai' (OpenAI Images API, needs a key), 'pollinations' (free, no key), " +
       "'local' (local OpenAI-compatible image server, IMAGEGEN_LOCAL_URL) or 'auto' (picks from the backends " +
       "the user enabled). Supports bulk (count, or descriptions for several different images) and " +
       "reference_images for inspiration/editing. Runs headlessly and copies the results to output_path. If no output_path " +
@@ -45,13 +45,17 @@ server.registerTool(
             "Omit it if the user didn't say where to save. Missing parent folders are created."
         ),
       backend: z
-        .enum(["agy", "codex", "openai", "local", "auto"])
+        .enum(["agy", "gemini", "openai", "pollinations", "local", "auto"])
         .optional()
         .describe(
-          "Optional. 'agy' = Gemini, 'codex' = OpenAI via Codex CLI, 'openai' = OpenAI API key, " +
+          "Optional. 'agy' = Gemini via Antigravity, 'gemini' = Gemini API/Imagen, 'openai' = OpenAI API key, 'pollinations' = free, " +
             "'local' = local server, 'auto' = pick among the user's enabled backends. " +
             "Omit to use IMAGEGEN_BACKEND or the default (agy). Ask the user if several are available and they have a preference."
         ),
+      model: z
+        .string()
+        .optional()
+        .describe("Optional. Model name for gemini/openai/pollinations/local, e.g. gpt-image-1-mini, imagen-4.0-generate-001, flux."),
       count: z
         .number()
         .int()
@@ -70,10 +74,11 @@ server.registerTool(
         .describe("Optional. Paths of existing images to use as inspiration or as the image to edit."),
     },
   },
-  async ({ description, output_path, backend, count, descriptions, reference_images }) => {
+  async ({ description, output_path, backend, model, count, descriptions, reference_images }) => {
     const args = ["-NoProfile", "-File", SCRIPT_PATH, "-Description", description];
     if (output_path) args.push("-OutputPath", output_path);
     if (backend) args.push("-Backend", backend);
+    if (model) args.push("-Model", model);
     if (count && count > 1) args.push("-Count", String(count));
     if (reference_images && reference_images.length) args.push("-Reference", reference_images.join("|"));
     if (descriptions && descriptions.length) {

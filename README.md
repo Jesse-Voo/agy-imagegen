@@ -4,7 +4,7 @@
 
 # agy-imagegen
 
-**One `image-generation` skill for Claude Code, Codex and Antigravity. Gemini or OpenAI, your choice.**
+**One `image-generation` skill for Claude Code, Codex and Antigravity. Gemini, OpenAI, free or local models, your choice.**
 
 Ask for an image in plain English. Get a file on disk.
 
@@ -22,9 +22,22 @@ Ask for an image in plain English. Get a file on disk.
 
 | You are in | Image backend | How |
 | --- | --- | --- |
-| **Claude Code** | **You choose**: Gemini (`agy`), OpenAI via API key (`openai`), OpenAI via Codex (`codex`), a local server (`local`), or `auto` | Claude asks (or uses `IMAGEGEN_BACKEND`) and runs the helper script headlessly |
-| **Antigravity (`agy`)** | Defaults to **OpenAI** (`openai` or `codex`); Gemini via agy's own tool on request | The skill brings the other model into agy |
-| **Codex** | Defaults to **Gemini** (`agy` backend); Codex's own `$imagegen` on request | The skill brings the other model into Codex |
+| **Claude Code** | **You choose** any backend below, or `auto` | Claude asks (or uses `IMAGEGEN_BACKEND`) and runs the helper script headlessly |
+| **Antigravity (`agy`)** | Gemini via agy's own tool by default; any other backend on request | The skill adds OpenAI, Imagen, free and local models to agy |
+| **Codex** | Any backend below (Codex itself can't generate images headlessly) | The skill gives Codex image generation |
+
+### Backends
+
+| Backend | Model | Needs |
+| --- | --- | --- |
+| `agy` | Gemini through the Antigravity CLI | `agy` installed and signed in |
+| `gemini` | Gemini image models (default `gemini-2.5-flash-image`) and Imagen (`-Model imagen-4.0-generate-001`) | Google AI Studio key (`-Login -Provider gemini`) |
+| `openai` | OpenAI Images API: `gpt-image-2` (default), `gpt-image-1`, `gpt-image-1-mini`, `dall-e-3` via `-Model` | OpenAI API key (`-Login`) |
+| `pollinations` | Free public service, default `flux` | nothing: no key, no account (lower quality, small watermark, no reference images, and the anonymous tier is rate-limited: it worked for my first request and then returned 402) |
+| `local` | Any OpenAI-compatible local image server | `IMAGEGEN_LOCAL_URL` |
+| `auto` | The agent picks among the backends you enable | `IMAGEGEN_BACKENDS` |
+
+> **Why no ChatGPT/Codex backend?** OpenAI doesn't offer image generation to ChatGPT-plan sign-ins ("Sign in with ChatGPT" lists image generation as unsupported), and headless `codex exec` exposes no image tool (tried with Codex CLI 0.166.0 on three models). OpenAI image models therefore need an API key.
 
 > *"Make an image of a red fox in a snowy forest, watercolor style."*
 
@@ -37,18 +50,16 @@ If you don't say where to save, it picks a sensible default folder and a readabl
 
 ### New in 1.2
 
-- **Cross-model in every agent:** in Antigravity the skill gives you the OpenAI model, in Codex it gives you Gemini (native tools stay available on request).
-- **`openai` backend + sign-in:** no Codex needed. Run the script once with `-Login` and paste your OpenAI API key (hidden input, verified against the API, stored encrypted for your Windows account only). `-Logout` removes it. `OPENAI_API_KEY` in the environment also works and takes priority.
-- **`local` backend:** any OpenAI-compatible local image server via `IMAGEGEN_LOCAL_URL`.
-- **`auto` backend:** let the agent pick among the backends you enable with `IMAGEGEN_BACKENDS` (e.g. `agy,openai`).
+- **More models:** `gemini` (Gemini API + Imagen), `openai` (API key), `pollinations` (free, no key) and `local`, plus `-Model` to pick a specific model.
+- **Sign-in:** `-Login` (OpenAI) or `-Login -Provider gemini` saves your API key (hidden input, verified against the API, stored encrypted for your Windows account only). `-Logout` removes it. The `OPENAI_API_KEY` / `GEMINI_API_KEY` environment variables also work and take priority.
+- **`auto` backend:** let the agent pick among the backends you enable with `IMAGEGEN_BACKENDS` (e.g. `agy,openai,pollinations`).
 - **Bulk:** `-Count 4` or `-BatchFile prompts.txt`.
 - **Reference images:** `-Reference "a.png|b.jpg"` for inspiration or edits.
+- **Removed:** the Codex backend (see above).
 
-**Tested:** the `agy` backend, bulk, `auto`, reference images and the MCP tool.
+**Tested:** the `agy` and `pollinations` backends, bulk, `auto`, reference images and the MCP tool. Key sign-in storage, read-back, rejection of a bad key and sign-out were tested with dummy values.
 
-**Known limitation (Codex backend):** tried with Codex CLI 0.166.0 signed in with a ChatGPT account, headless `codex exec` exposed **no image-generation tool** (it answered that none was available, on three different models), even though the `image_generation` feature flag is on. So the `codex` backend currently fails fast with Codex's own message on that setup. Use the `openai` backend (API key) for OpenAI images instead. Whether `codex exec` can generate images with an API-key sign-in is untested.
-
-**Untested:** the `openai` backend against the real API (no key available here; `-Login` storage, read-back, rejection of a bad key and `-Logout` were tested with a dummy value) and a real `local` server.
+**Untested against the real service:** the `openai` and `gemini` backends (no keys available here) and a real `local` server.
 
 ## How it works
 
@@ -57,14 +68,15 @@ The helper script, `generate-image.ps1`, has three modes:
 | Mode | What it does |
 | --- | --- |
 | *(default)* | Runs the chosen backend **headlessly** (no window, no keyboard-focus stealing), waits for the image, saves it |
-| `-FromFile <path>` | Saves an image another tool already made (agy's or Codex's built-in image tool) to your path, converting format if needed |
+| `-FromFile <path>` | Saves an image another tool already made (e.g. agy's built-in image tool) to your path, converting format if needed |
 | `-Check` | Reports which backends are installed |
 
 - **agy:** runs `agy -p "<prompt>" --output-format json`, reads the conversation id from the JSON and picks the image up from agy's working folder.
-- **codex:** runs `codex exec` in a scratch folder, asks Codex's built-in `$imagegen` to save the file there, and falls back to Codex's own generated-images store (see the known limitation above).
-- **openai:** calls the OpenAI Images API (`/images/generations`, or `/images/edits` when you pass reference images) with `OPENAI_API_KEY`.
-- **local:** the same API shape against `IMAGEGEN_LOCAL_URL`, for any OpenAI-compatible local image server.
-- **auto:** picks one of the backends you enabled (`IMAGEGEN_BACKENDS`): text, logos, layouts and edits go to OpenAI first, everything else to Gemini first.
+- **gemini:** calls the Gemini API (`generateContent` with image output, or `predict` for Imagen models) with your key; reference images are sent inline.
+- **openai:** calls the OpenAI Images API (`/images/generations`, or `/images/edits` when you pass reference images).
+- **pollinations:** one GET request to the free `image.pollinations.ai` service.
+- **local:** the same API shape as `openai` against `IMAGEGEN_LOCAL_URL`, for any OpenAI-compatible local image server.
+- **auto:** picks one of the backends you enabled (`IMAGEGEN_BACKENDS`): text, logos, layouts and edits go to OpenAI first, everything else to Gemini (agy) first, quick drafts to local/free models.
 
 ### Why not just `--dangerously-skip-permissions`?
 
@@ -77,8 +89,8 @@ This project avoids that: the agent only generates the image, and the wrapper sc
 - Windows 10/11 with PowerShell 5.1+ (or PowerShell 7)
 - At least one image backend, installed **and signed in**:
   - [Antigravity CLI](https://antigravity.google) (`agy`) for Gemini. Run `agy` once interactively to log in.
-  - An OpenAI API key for OpenAI images through the API (the `openai` backend): sign in once with `-Login`, or set `OPENAI_API_KEY`. Or
-  - [Codex CLI](https://developers.openai.com/codex) (`codex`, found on `PATH` or in the Codex desktop app's folder); see the known limitation above.
+  - A Google AI Studio key for the `gemini` backend, or an OpenAI API key for the `openai` backend: sign in once with `-Login`, or set the environment variable.
+  - Or nothing at all: `pollinations` is free with no key.
   - Optionally a local OpenAI-compatible image server (`IMAGEGEN_LOCAL_URL`).
 - An agent to run the skill in: [Claude Code](https://claude.com/claude-code), Codex or Antigravity
 - Node.js 18+ (only for the optional MCP server)
@@ -103,7 +115,7 @@ Then ask agy for an image. It uses its own image tool and the skill places the f
 /plugin install agy-imagegen@agy-imagegen
 ```
 
-Then just ask Claude for an image. If both `agy` and `codex` are installed and you didn't say which, Claude asks.
+Then just ask Claude for an image. If several backends are available and you didn't say which, Claude asks.
 
 ### Codex
 
@@ -119,7 +131,7 @@ Then restart Codex. (`codex plugin list` shows what is installed.) To enable it 
 enabled = true
 ```
 
-> The Codex manifest follows OpenAI's published plugin spec; installing it through `codex plugin` has not been tested yet. In Codex the skill brings in Gemini through the `agy` backend, which needs the Antigravity CLI installed and signed in.
+> The Codex manifest follows OpenAI's published plugin spec; installing it through `codex plugin` has not been tested yet. Codex can't generate images itself, so in Codex the skill uses one of the backends above (`pollinations` works with no setup).
 
 ### As a plain skill
 
@@ -132,7 +144,7 @@ Copy-Item -Recurse agy-imagegen\plugins\agy-imagegen\skills\image-generation $HO
 
 ### On claude.ai
 
-claude.ai skills run in a cloud sandbox that has neither your PC nor `agy`/`codex`, so this skill can't generate images there. It needs an agent running locally on your machine.
+claude.ai skills run in a cloud sandbox that has neither your PC nor `agy`, so this skill can't generate images there. It needs an agent running locally on your machine.
 
 ### As an MCP server (optional)
 
@@ -154,17 +166,18 @@ Just ask:
 
 - *"Generate a logo for my coffee shop, flat vector style."*
 - *"Draw a cozy cabin at night and save it to `C:\Users\me\Pictures\cabin.png`."*
-- *"Make a pixel-art sword with OpenAI/Codex."* (Claude Code picks the backend you name.)
+- *"Make a pixel-art sword with OpenAI."* or *"...with Imagen"* or *"...with something free."* (Claude Code picks the backend you name.)
 
-### Signing in to OpenAI (for the `openai` backend)
+### Signing in (for the `openai` and `gemini` backends)
 
 ```powershell
-& $gen -Login     # paste your API key once (platform.openai.com/api-keys)
-& $gen -Check     # shows: openai: available (saved sign-in ...)
+& $gen -Login                    # OpenAI: paste your API key once (platform.openai.com/api-keys)
+& $gen -Login -Provider gemini   # Gemini: key from aistudio.google.com/apikey
+& $gen -Check                    # shows: openai: available (saved sign-in ...)
 & $gen -Logout    # remove the saved key
 ```
 
-This is a key-based sign-in: OpenAI does not offer a "Sign in with ChatGPT" flow for third-party tools to the Images API, so the script never touches Codex's or ChatGPT's own tokens. The key is encrypted with Windows DPAPI (readable only by your Windows user) in `%APPDATA%\agy-imagegen\openai.key`. For a piped sign-in, send the key on stdin: `$key | & $gen -Login`.
+This is a key-based sign-in: OpenAI does not offer a "Sign in with ChatGPT" flow for third-party tools to the Images API, so the script never touches Codex's or ChatGPT's own tokens. The key is encrypted with Windows DPAPI (readable only by your Windows user) in `%APPDATA%\agy-imagegen\<provider>.key`. For a piped sign-in, send the key on stdin: `$key | & $gen -Login`.
 
 ### From PowerShell
 
@@ -178,7 +191,10 @@ $gen = ".\plugins\agy-imagegen\skills\image-generation\scripts\generate-image.ps
 & $gen -Description "a red fox in a snowy forest, watercolor style"
 
 # Pick the backend and a specific file (format follows the extension)
-& $gen -Backend codex -Description "a neon city skyline" -OutputPath "$HOME\Pictures\city.jpg"
+& $gen -Backend openai -Model gpt-image-1-mini -Description "a neon city skyline" -OutputPath "$HOME\Pictures\city.jpg"
+
+# Free, no key
+& $gen -Backend pollinations -Description "a neon city skyline"
 
 # Save into a folder, auto-named
 & $gen -Description "a paper boat" -OutputPath "$HOME\Desktop"
@@ -195,22 +211,26 @@ The saved path is printed as the last line of output.
 | --- | --- | --- |
 | `-Description` | yes (unless `-FromFile` or `-Check`) | What the image should show. Be specific about subject and style. |
 | `-OutputPath` | no | File path, or an existing folder. `.png`, `.jpg`/`.jpeg`, `.bmp`, `.gif`. Missing folders are created. |
-| `-Backend` | no | `agy`, `codex`, `openai`, `local` or `auto`. Default: `IMAGEGEN_BACKEND`, else `agy`. |
+| `-Backend` | no | `agy`, `gemini`, `openai`, `pollinations`, `local` or `auto`. Default: `IMAGEGEN_BACKEND`, else `agy`. |
+| `-Model` | no | Model name for `gemini`, `openai`, `pollinations` or `local`. |
 | `-Count` | no | Make N variations of `-Description` (1-10). |
 | `-BatchFile` | no | Text file, one description per line (max 20). |
 | `-Reference` | no | Existing image(s) as inspiration or to edit; separate several with `\|`. |
 | `-FromFile` | no | Save an existing image instead of generating one. |
 | `-Check` | no | Print which backends are installed and exit. |
-| `-Login` / `-Logout` | no | Save / remove your OpenAI API key for the `openai` backend (`-NoVerify` skips the check call). |
+| `-Login` / `-Logout` | no | Save / remove an API key for `-Provider openai` (default) or `gemini` (`-NoVerify` skips the check call). |
 | `-TimeoutSeconds` | no | Give up after this long. Default `300`. |
 
 ### Configuration (environment variables, all optional)
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `IMAGEGEN_BACKEND` | `agy` | Default backend: `agy`, `codex`, `openai`, `local` or `auto` |
-| `IMAGEGEN_BACKENDS` | all available | Backends `auto` may choose from, e.g. `agy,openai` |
+| `IMAGEGEN_BACKEND` | `agy` | Default backend: `agy`, `gemini`, `openai`, `pollinations`, `local` or `auto` |
+| `IMAGEGEN_BACKENDS` | all available | Backends `auto` may choose from, e.g. `agy,openai,pollinations` (`pollinations` is only used by `auto` if listed here) |
 | `OPENAI_API_KEY` | none | Enables the `openai` backend (overrides a saved `-Login` key) |
+| `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | none | Enables the `gemini` backend (overrides a saved `-Login` key) |
+| `GEMINI_IMAGE_MODEL` | `gemini-2.5-flash-image` | Model for the `gemini` backend |
+| `POLLINATIONS_MODEL` | `flux` | Model for the `pollinations` backend |
 | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Model for the `openai` backend |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | API base URL |
 | `IMAGEGEN_LOCAL_URL` | none | Base URL of a local OpenAI-compatible image server (enables `local`) |
@@ -218,8 +238,6 @@ The saved path is printed as the last line of output.
 | `AGY_IMAGE_DIR` | `<Pictures>\Generated` | Default save folder when no path is given |
 | `AGY_EXE` | `agy` on `PATH`, else `%LOCALAPPDATA%\agy\bin\agy.exe` | Path to the Antigravity CLI |
 | `AGY_BRAIN_DIR` | `~\.gemini\antigravity-cli\brain` | Where agy keeps generated images |
-| `CODEX_EXE` | `codex` on `PATH`, else the Codex desktop app's CLI | Path to the Codex CLI |
-| `CODEX_HOME` | `~\.codex` | Codex's home folder (fallback image store) |
 
 ## Repository layout
 
@@ -242,10 +260,10 @@ agy-imagegen/
 
 | Symptom | Fix |
 | --- | --- |
-| `agy not found` / `codex not found` | Install that CLI, or set `AGY_EXE` / `CODEX_EXE`. Run `-Check` to see what is detected. |
+| `agy not found` | Install the Antigravity CLI, or set `AGY_EXE`. Run `-Check` to see what is detected. |
 | `agy returned no usable JSON` | Run `agy` once interactively and sign in. |
-| `No image produced by codex` (Codex says it has no image tool) | Headless `codex exec` doesn't expose image generation on every setup. Use `-Backend openai` with an API key instead. |
-| `Not signed in to OpenAI` | Run the script with `-Login` once, or set `OPENAI_API_KEY`. |
+| `Not signed in to OpenAI` / `Gemini` | Run the script with `-Login` (or `-Login -Provider gemini`) once, or set `OPENAI_API_KEY` / `GEMINI_API_KEY`. |
+| Pollinations request failed (402 / 429) | The free anonymous tier has a usage limit and rate-limits (my second request in a row got `402 Payment Required`); wait a while or use another backend. |
 | `No image appeared in ...` | The backend answered but didn't generate an image. Try rewording the description. |
 | agy generated the image but it isn't at my path | Headless agy can't approve the copy command. Use the interactive session, or call the script directly. |
 | Script blocked by execution policy | Run with `powershell -ExecutionPolicy Bypass -File ...` or adjust your policy. |
@@ -253,7 +271,7 @@ agy-imagegen/
 
 ## Notes
 
-- Images are generated by Google's Gemini through your own Antigravity account, or by OpenAI's `gpt-image-2` through your own Codex account; usage and limits are governed by their terms.
+- Images are generated by Google's Gemini/Imagen (your own Antigravity account or API key), OpenAI's image models (your own API key), the free Pollinations service, or your own local server; usage, limits and billing are governed by each provider's terms. Images from the free Pollinations tier carry a small watermark.
 - This project is unofficial and is not affiliated with Google, OpenAI or Anthropic.
 - The logo is the [Tabler Icons](https://tabler.io/icons) `photo-ai` icon (MIT) via [Iconify](https://iconify.design).
 - These CLIs are young and their flags may change. If something breaks after an update, please open an issue.

@@ -1,7 +1,7 @@
 {
   "name": "agy-imagegen",
-  "version": "1.2.0",
-  "description": "Generate images with Gemini (agy) or OpenAI gpt-image-2 (Codex) and save them where you want. Works in Claude Code, Codex and Antigravity.",
+  "version": "1.3.0",
+  "description": "Generate images with Gemini (Antigravity or API key), OpenAI (API key), the free Pollinations service or a local model, and save them where you want. Works in Claude Code, Codex and Antigravity.",
   "author": {
     "name": "Jesse-Voo",
     "url": "https://github.com/Jesse-Voo"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Image Generation (agy)",
-    "shortDescription": "Generate images with OpenAI or Gemini and save them where you want",
-    "longDescription": "Turns a text description into an image file. Inside Codex it uses Codex's own image generation (gpt-image-2) and places the file where you ask; it can also drive the Antigravity CLI (agy) for Gemini. No permission bypass and no window automation: a wrapper script copies the result to your chosen path, converting between PNG, JPEG, BMP and GIF if needed. Windows + PowerShell.",
+    "shortDescription": "Generate images with Gemini, OpenAI or free models and save them where you want",
+    "longDescription": "Turns a text description into an image file. It drives Gemini (Antigravity CLI or API key), OpenAI (API key), the free Pollinations service or a local OpenAI-compatible model; Codex itself cannot generate images headlessly, so this gives Codex image generation through those backends. No permission bypass and no window automation: a wrapper script copies the result to your chosen path, converting between PNG, JPEG, BMP and GIF if needed. Windows + PowerShell.",
     "developerName": "Jesse-Voo",
     "category": "Design",
     "capabilities": [

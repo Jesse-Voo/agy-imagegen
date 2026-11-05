@@ -1,31 +1,35 @@
 <#
 .SYNOPSIS
-  Generates images with Gemini (Antigravity CLI "agy"), OpenAI (Codex CLI or the OpenAI API) or a
-  local OpenAI-compatible image server, and saves them to disk.
+  Generates images with Gemini (Antigravity CLI or Gemini API), OpenAI (Images API), Pollinations
+  (free, no key) or a local OpenAI-compatible image server, and saves them to disk.
 
 .DESCRIPTION
   Modes:
 
-    Generate  (default)   Runs the chosen backend headlessly, waits for the image, saves it.
+    Generate  (default)   Runs the chosen backend, waits for the image, saves it.
     -FromFile <path>      Skips generation: takes an image another tool already made (for
-                          example agy's or Codex's built-in image tool) and saves it to
-                          OutputPath / the default folder, converting format if needed.
+                          example agy's built-in image tool) and saves it to OutputPath / the
+                          default folder, converting format if needed.
     -Check                Prints which backends are available and exits.
+    -Login / -Logout      Saves / removes an API key (see -Provider).
 
   Backends (-Backend, or env IMAGEGEN_BACKEND; default agy):
-    agy     agy -p ... --output-format json (Gemini). agy's image tool writes under
-            <brain>\<conversation_id>\; the id is read from the JSON output.
-    codex   codex exec ... in a scratch folder, asking Codex's built-in $imagegen
-            (gpt-image-2) to save the file there. Uses your Codex sign-in.
-    openai  Calls the OpenAI Images API directly with OPENAI_API_KEY (no Codex needed).
-    local   Calls a local OpenAI-compatible image server at IMAGEGEN_LOCAL_URL
-            (e.g. http://127.0.0.1:8080/v1). No key needed.
-    auto    Picks one of the enabled, available backends based on the request.
-            "Enabled" = IMAGEGEN_BACKENDS (comma list); default is every available backend.
+    agy           agy -p ... --output-format json (Gemini via your Antigravity sign-in).
+    gemini        Gemini API with a Google AI Studio key. Gemini image models (default
+                  gemini-2.5-flash-image) and Imagen (-Model imagen-4.0-generate-001).
+    openai        OpenAI Images API with an OpenAI API key (default model gpt-image-2;
+                  also gpt-image-1, gpt-image-1-mini, dall-e-3 ...).
+    pollinations  Free public image service, no key and no account (default model flux).
+                  No reference images.
+    local         A local OpenAI-compatible image server at IMAGEGEN_LOCAL_URL.
+    auto          Picks one of the enabled, available backends based on the request.
+                  "Enabled" = IMAGEGEN_BACKENDS (comma list); default is every available
+                  backend (pollinations only when listed there).
 
   Bulk:       -Count N makes N variations of -Description; -BatchFile <txt> makes one image per
               non-empty line. Several images get -01, -02 ... suffixes. Results print one path per line.
-  References: -Reference "a.png|b.jpg" passes existing images to the model as inspiration/input.
+  References: -Reference "a.png|b.jpg" passes existing images to the model as inspiration/input
+              (agy, gemini with Gemini models, openai, local).
 
   No backend is run with a permission bypass: the script itself does the copying.
   The saved path(s) are printed as the last line(s) of stdout; the backend used goes to stderr.
@@ -34,11 +38,14 @@
   What the image should depict.
 
 .PARAMETER OutputPath
-  Optional. File path (.png, .jpg/.jpeg, .bmp, .gif) or an existing folder. If omitted, files are
-  named <timestamp>-<description-slug>.png in the default folder.
+  Optional. File path (.png, .jpg/.jpeg, .bmp, .gif) or a folder. If omitted, files are named
+  <timestamp>-<description-slug>.png in the default folder.
 
 .PARAMETER Backend
-  agy | codex | openai | local | auto.
+  agy | gemini | openai | pollinations | local | auto.
+
+.PARAMETER Model
+  Optional model name for gemini, openai, pollinations or local (overrides the env defaults).
 
 .PARAMETER Count
   Number of variations to generate of -Description (default 1, max 10).
@@ -55,40 +62,54 @@
 .PARAMETER Check
   Report which backends are available.
 
+.PARAMETER Login
+  Save an API key for -Provider (hidden prompt, or one line on stdin). The key is verified, then
+  stored encrypted with Windows DPAPI for this Windows user only.
+
+.PARAMETER Logout
+  Remove the saved key for -Provider.
+
+.PARAMETER Provider
+  openai (default) or gemini. Used with -Login / -Logout.
+
 .PARAMETER TimeoutSeconds
   Give up on each image after this many seconds. Default 300.
 
 .NOTES
   ENVIRONMENT (all optional):
-    IMAGEGEN_BACKEND      Default backend: agy, codex, openai, local or auto.
-    IMAGEGEN_BACKENDS     Backends the AI may choose from with auto, e.g. "agy,openai".
-    AGY_EXE               Full path to agy.exe. Default: agy on PATH, else %LOCALAPPDATA%\agy\bin\agy.exe
-    AGY_BRAIN_DIR         agy's conversation folder. Default: ~\.gemini\antigravity-cli\brain
-    CODEX_EXE             Full path to the codex executable. Default: codex on PATH
-    CODEX_HOME            Codex's home folder. Default: ~\.codex
-    OPENAI_API_KEY        Enables the openai backend.
-    OPENAI_BASE_URL       Default https://api.openai.com/v1
-    OPENAI_IMAGE_MODEL    Default gpt-image-2
-    IMAGEGEN_LOCAL_URL    Base URL of a local OpenAI-compatible image server; enables the local backend.
-    IMAGEGEN_LOCAL_MODEL  Model name to send to the local server (optional).
-    AGY_IMAGE_DIR         Default save folder. Default: <Pictures>\Generated
+    IMAGEGEN_BACKEND       Default backend.
+    IMAGEGEN_BACKENDS      Backends the AI may choose from with auto, e.g. "agy,openai,pollinations".
+    AGY_EXE                Full path to agy.exe. Default: agy on PATH, else %LOCALAPPDATA%\agy\bin\agy.exe
+    AGY_BRAIN_DIR          agy's conversation folder. Default: ~\.gemini\antigravity-cli\brain
+    OPENAI_API_KEY         OpenAI key (overrides a saved -Login key).
+    OPENAI_BASE_URL        Default https://api.openai.com/v1
+    OPENAI_IMAGE_MODEL     Default gpt-image-2
+    GEMINI_API_KEY         Google AI Studio key (or GOOGLE_API_KEY; overrides a saved -Login key).
+    GEMINI_IMAGE_MODEL     Default gemini-2.5-flash-image
+    POLLINATIONS_MODEL     Default flux
+    IMAGEGEN_LOCAL_URL     Base URL of a local OpenAI-compatible image server; enables the local backend.
+    IMAGEGEN_LOCAL_MODEL   Model name to send to the local server (optional).
+    AGY_IMAGE_DIR          Default save folder. Default: <Pictures>\Generated
 
 .EXAMPLE
   .\generate-image.ps1 -Check
 .EXAMPLE
   .\generate-image.ps1 -Description "a red fox in a snowy forest, watercolor style"
 .EXAMPLE
-  .\generate-image.ps1 -Backend openai -Count 4 -Description "a flat vector coffee logo" -OutputPath "$HOME\Pictures\logos"
+  .\generate-image.ps1 -Backend pollinations -Description "a flat vector coffee logo"
 .EXAMPLE
-  .\generate-image.ps1 -Backend auto -Reference "$HOME\Pictures\sketch.png" -Description "turn this sketch into a polished poster"
+  .\generate-image.ps1 -Backend openai -Model gpt-image-1-mini -Count 4 -Description "a flat vector coffee logo" -OutputPath "$HOME\Pictures\logos"
 .EXAMPLE
-  .\generate-image.ps1 -FromFile "C:\path\to\generated.jpg" -Description "a red fox" -OutputPath "$HOME\Pictures\fox.png"
+  .\generate-image.ps1 -Backend gemini -Model imagen-4.0-generate-001 -Description "a mountain lake at dawn"
+.EXAMPLE
+  .\generate-image.ps1 -Login -Provider gemini
 #>
 param(
     [string]$Description,
     [string]$OutputPath,
-    [ValidateSet("agy", "codex", "openai", "local", "auto")]
+    [ValidateSet("agy", "gemini", "openai", "pollinations", "local", "auto")]
     [string]$Backend,
+    [string]$Model,
     [ValidateRange(1, 10)]
     [int]$Count = 1,
     [string]$BatchFile,
@@ -97,13 +118,15 @@ param(
     [switch]$Check,
     [switch]$Login,
     [switch]$Logout,
+    [ValidateSet("openai", "gemini")]
+    [string]$Provider = "openai",
     [switch]$NoVerify,
     [int]$TimeoutSeconds = 300
 )
 
 $ErrorActionPreference = "Stop"
 
-# --- Locating the backends -----------------------------------------------------------
+# --- Locating agy --------------------------------------------------------------------
 function Find-Agy {
     if ($env:AGY_EXE) { if (Test-Path $env:AGY_EXE) { return $env:AGY_EXE } else { return $null } }
     $cmd = Get-Command agy -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -113,26 +136,22 @@ function Find-Agy {
     return $null
 }
 
-function Find-Codex {
-    if ($env:CODEX_EXE) { if (Test-Path $env:CODEX_EXE) { return $env:CODEX_EXE } else { return $null } }
-    # npm installs codex.ps1 + codex.cmd shims; Start-Process needs an executable, so prefer .exe/.cmd.
-    $all = @(Get-Command codex -All -ErrorAction SilentlyContinue)
-    $pick = $all | Where-Object { $_.Source -match '\.(exe|cmd|bat)$' } | Select-Object -First 1
-    if ($pick) { return $pick.Source }
-    # The Codex desktop app ships its own CLI that is not on PATH.
-    $app = Join-Path $env:LOCALAPPDATA "Programs\OpenAI\Codex\bin\codex.exe"
-    if (Test-Path $app) { return $app }
-    return $null
+# --- API keys: environment first, else a saved sign-in (Windows DPAPI, this user only) ---
+function Get-KeyFile([string]$P) { Join-Path $env:APPDATA "agy-imagegen\$P.key" }
+
+function Get-EnvKey([string]$P) {
+    if ($P -eq "openai") { return $env:OPENAI_API_KEY }
+    if ($env:GEMINI_API_KEY) { return $env:GEMINI_API_KEY }
+    return $env:GOOGLE_API_KEY
 }
 
-# --- OpenAI sign-in: an API key kept encrypted (Windows DPAPI, this user only) ---------
-$KeyFile = Join-Path $env:APPDATA "agy-imagegen\openai.key"
-
-function Get-OpenAIKey {
-    if ($env:OPENAI_API_KEY) { return $env:OPENAI_API_KEY }
-    if (Test-Path $KeyFile) {
+function Get-ApiKey([string]$P) {
+    $e = Get-EnvKey $P
+    if ($e) { return $e }
+    $f = Get-KeyFile $P
+    if (Test-Path $f) {
         try {
-            $sec = (Get-Content $KeyFile -Raw).Trim() | ConvertTo-SecureString
+            $sec = (Get-Content $f -Raw).Trim() | ConvertTo-SecureString
             $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
             try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
             finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
@@ -142,17 +161,17 @@ function Get-OpenAIKey {
     return $null
 }
 
-function Get-OpenAIKeySource {
-    if ($env:OPENAI_API_KEY) { return "OPENAI_API_KEY environment variable" }
-    if (Test-Path $KeyFile) { return "saved sign-in ($KeyFile)" }
+function Get-KeySource([string]$P) {
+    if (Get-EnvKey $P) { return "environment variable" }
+    if (Test-Path (Get-KeyFile $P)) { return "saved sign-in" }
     return $null
 }
 
 function Get-AvailableBackends {
     $list = @()
     if (Find-Agy) { $list += "agy" }
-    if (Find-Codex) { $list += "codex" }
-    if (Get-OpenAIKey) { $list += "openai" }
+    if (Get-ApiKey "gemini") { $list += "gemini" }
+    if (Get-ApiKey "openai") { $list += "openai" }
     if ($env:IMAGEGEN_LOCAL_URL) { $list += "local" }
     return $list
 }
@@ -161,28 +180,32 @@ function Get-EnabledBackends {
     $avail = @(Get-AvailableBackends)
     if (-not $env:IMAGEGEN_BACKENDS) { return $avail }
     $want = $env:IMAGEGEN_BACKENDS.ToLower().Split(@(',', ' ', ';'), [StringSplitOptions]::RemoveEmptyEntries)
-    return @($avail | Where-Object { $_ -in $want })
+    $out = @($avail | Where-Object { $_ -in $want })
+    if ($want -contains "pollinations") { $out += "pollinations" }
+    return $out
 }
 
 function Say([string]$Text) { [Console]::Error.WriteLine($Text) }
 
 if ($Logout) {
-    if (Test-Path $KeyFile) { Remove-Item $KeyFile -Force; "Signed out: saved OpenAI key removed." }
-    else { "No saved OpenAI sign-in found." }
-    if ($env:OPENAI_API_KEY) { "Note: OPENAI_API_KEY is still set in your environment." }
+    $f = Get-KeyFile $Provider
+    if (Test-Path $f) { Remove-Item $f -Force; "Signed out: saved $Provider key removed." }
+    else { "No saved $Provider sign-in found." }
+    if (Get-EnvKey $Provider) { "Note: the $Provider API key is still set in your environment." }
     return
 }
 
 if ($Login) {
-    Write-Host "Sign in to OpenAI for image generation."
-    Write-Host "Create or copy an API key at https://platform.openai.com/api-keys (it is shown only once)."
+    $keyUrl = if ($Provider -eq "openai") { "https://platform.openai.com/api-keys" } else { "https://aistudio.google.com/apikey" }
+    Write-Host "Sign in to $Provider for image generation."
+    Write-Host "Create or copy an API key at $keyUrl"
     if ([Console]::IsInputRedirected) {
         # Key piped in (e.g. from a secrets manager): read one line from stdin.
         $plain = ([Console]::In.ReadLine())
         if ($plain) { $plain = $plain.Trim() }
     }
     else {
-        $sec = Read-Host "Paste your OpenAI API key (input hidden)" -AsSecureString
+        $sec = Read-Host "Paste your $Provider API key (input hidden)" -AsSecureString
         $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
         try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
         finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
@@ -190,33 +213,42 @@ if ($Login) {
     if (-not $plain -or $plain.Length -lt 20) { Write-Error "That doesn't look like an API key."; exit 1 }
 
     if (-not $NoVerify) {
-        $base = if ($env:OPENAI_BASE_URL) { $env:OPENAI_BASE_URL.TrimEnd('/') } else { "https://api.openai.com/v1" }
         try {
-            [void](Invoke-RestMethod -Uri "$base/models" -Headers @{ Authorization = "Bearer $plain" } -TimeoutSec 30)
+            if ($Provider -eq "openai") {
+                $base = if ($env:OPENAI_BASE_URL) { $env:OPENAI_BASE_URL.TrimEnd('/') } else { "https://api.openai.com/v1" }
+                [void](Invoke-RestMethod -Uri "$base/models" -Headers @{ Authorization = "Bearer $plain" } -TimeoutSec 30)
+            }
+            else {
+                [void](Invoke-RestMethod -Uri "https://generativelanguage.googleapis.com/v1beta/models" -Headers @{ "x-goog-api-key" = $plain } -TimeoutSec 30)
+            }
         }
         catch {
             $code = try { [int]$_.Exception.Response.StatusCode } catch { 0 }
-            if ($code -eq 401) { Write-Error "OpenAI rejected that key (401). Nothing was saved."; exit 1 }
+            if ($code -in 400, 401, 403) { Write-Error "$Provider rejected that key ($code). Nothing was saved."; exit 1 }
             Write-Error "Could not verify the key ($($_.Exception.Message)). Nothing was saved. Re-run with -NoVerify to save it anyway."
             exit 1
         }
     }
-    $dir = Split-Path $KeyFile -Parent
+    $f = Get-KeyFile $Provider
+    $dir = Split-Path $f -Parent
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    ($plain | ConvertTo-SecureString -AsPlainText -Force | ConvertFrom-SecureString) | Set-Content $KeyFile -Encoding ASCII
+    ($plain | ConvertTo-SecureString -AsPlainText -Force | ConvertFrom-SecureString) | Set-Content $f -Encoding ASCII
     $plain = $null
-    "Signed in. Key saved encrypted for this Windows account at $KeyFile."
-    "Use it with: -Backend openai   (sign out any time with -Logout)"
+    "Signed in to $Provider. Key saved encrypted for this Windows account at $f."
+    "Use it with: -Backend $Provider   (sign out any time with -Logout -Provider $Provider)"
     return
 }
 
 if ($Check) {
     $a = Find-Agy
-    $c = Find-Codex
-    "agy:    " + $(if ($a) { "available ($a)" } else { "not found" })
-    "codex:  " + $(if ($c) { "available ($c)" } else { "not found" })
-    "openai: " + $(if (Get-OpenAIKey) { "available (" + (Get-OpenAIKeySource) + ", model " + $(if ($env:OPENAI_IMAGE_MODEL) { $env:OPENAI_IMAGE_MODEL } else { "gpt-image-2" }) + ")" } else { "not signed in (run -Login, or set OPENAI_API_KEY)" })
-    "local:  " + $(if ($env:IMAGEGEN_LOCAL_URL) { "available ($($env:IMAGEGEN_LOCAL_URL))" } else { "not configured (set IMAGEGEN_LOCAL_URL)" })
+    function KeyLine([string]$P, [string]$Model) {
+        if (Get-ApiKey $P) { "available (" + (Get-KeySource $P) + ", model $Model)" } else { "not signed in (run -Login -Provider $P, or set the API key env var)" }
+    }
+    "agy:          " + $(if ($a) { "available ($a)" } else { "not found" })
+    "gemini:       " + (KeyLine "gemini" $(if ($env:GEMINI_IMAGE_MODEL) { $env:GEMINI_IMAGE_MODEL } else { "gemini-2.5-flash-image" }))
+    "openai:       " + (KeyLine "openai" $(if ($env:OPENAI_IMAGE_MODEL) { $env:OPENAI_IMAGE_MODEL } else { "gpt-image-2" }))
+    "pollinations: free, no key (model " + $(if ($env:POLLINATIONS_MODEL) { $env:POLLINATIONS_MODEL } else { "flux" }) + "); used by auto only if listed in IMAGEGEN_BACKENDS"
+    "local:        " + $(if ($env:IMAGEGEN_LOCAL_URL) { "available ($($env:IMAGEGEN_LOCAL_URL))" } else { "not configured (set IMAGEGEN_LOCAL_URL)" })
     $def = if ($env:IMAGEGEN_BACKEND) { $env:IMAGEGEN_BACKEND } else { "agy" }
     "default backend: $def"
     "enabled for auto: " + ((Get-EnabledBackends) -join ", ")
@@ -249,8 +281,8 @@ if ($Reference) {
 }
 
 if (-not $Backend) { $Backend = if ($env:IMAGEGEN_BACKEND) { $env:IMAGEGEN_BACKEND.ToLower() } else { "agy" } }
-if ($Backend -notin "agy", "codex", "openai", "local", "auto") {
-    Write-Error "Unknown backend '$Backend'. Use agy, codex, openai, local or auto."
+if ($Backend -notin "agy", "gemini", "openai", "pollinations", "local", "auto") {
+    Write-Error "Unknown backend '$Backend'. Use agy, gemini, openai, pollinations, local or auto."
     exit 1
 }
 
@@ -324,6 +356,23 @@ function Wait-ForImage([string[]]$Dirs, [datetime]$Since, [switch]$Recurse) {
     return $null
 }
 
+function Get-MimeType([string]$Path) {
+    switch ([IO.Path]::GetExtension($Path).ToLower()) { '.jpg' { 'image/jpeg' } '.jpeg' { 'image/jpeg' } '.webp' { 'image/webp' } default { 'image/png' } }
+}
+
+# Writes image bytes to a temp file (extension sniffed from the magic bytes) and returns it.
+function Save-Bytes([byte[]]$Bytes) {
+    $ext = "png"
+    if ($Bytes.Length -gt 3) {
+        if ($Bytes[0] -eq 0xFF -and $Bytes[1] -eq 0xD8) { $ext = "jpg" }
+        elseif ($Bytes[0] -eq 0x52 -and $Bytes[1] -eq 0x49) { $ext = "webp" }
+        elseif (-not ($Bytes[0] -eq 0x89 -and $Bytes[1] -eq 0x50)) { throw "The service returned data that is not an image." }
+    }
+    $tmp = Join-Path $workDir ("api-" + [guid]::NewGuid().ToString("N").Substring(0, 8) + "." + $ext)
+    [IO.File]::WriteAllBytes($tmp, $Bytes)
+    return (Get-Item $tmp)
+}
+
 $workDir = Join-Path $env:TEMP "agy-imagegen"
 New-Item -ItemType Directory -Path $workDir -Force | Out-Null
 
@@ -337,7 +386,7 @@ if ($FromFile) {
     return
 }
 
-# --- Backend: agy (Gemini) -----------------------------------------------------------
+# --- Backend: agy (Gemini via the Antigravity CLI) -----------------------------------
 function Invoke-Agy([string]$Desc) {
     $exe = Find-Agy
     if (-not $exe) { throw "agy not found. Install the Antigravity CLI or set AGY_EXE." }
@@ -392,58 +441,8 @@ function Invoke-Agy([string]$Desc) {
     return $image
 }
 
-# --- Backend: codex (OpenAI gpt-image-2 via the built-in $imagegen skill) -------------
-function Invoke-Codex([string]$Desc) {
-    $exe = Find-Codex
-    if (-not $exe) { throw "codex not found. Install the Codex CLI (npm i -g @openai/codex), sign in, or set CODEX_EXE." }
-    $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE ".codex" }
-
-    # A scratch workspace Codex is allowed to write into (workspace-write sandbox).
-    $scratch = Join-Path $workDir ("codex-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
-    New-Item -ItemType Directory -Path $scratch -Force | Out-Null
-
-    $prompt = 'Use the $imagegen skill to generate an image of ' + $Desc +
-        $(if ($refs.Count -gt 0) { ', using the attached image(s) as reference' } else { '' }) +
-        '. Use only $imagegen for this; do not use any other skill or run any other helper. Save the final image as image.png in the current working directory, then reply with only the file name.'
-
-    $stdout = Join-Path $scratch "codex-stdout.txt"
-    $stderr = Join-Path $scratch "codex-stderr.txt"
-
-    $argList = @("exec", "--skip-git-repo-check", "--sandbox", "workspace-write")
-    # codex exec --image/-i attaches images to the prompt (comma-separated list).
-    if ($refs.Count -gt 0) { $argList += @("--image", (Quote-Arg ($refs -join ","))) }
-    $argList += (Quote-Arg $prompt)
-
-    $started = Get-Date
-    $proc = Start-Process -FilePath $exe -ArgumentList $argList `
-        -WorkingDirectory $scratch -NoNewWindow -PassThru `
-        -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-
-    if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
-        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-        throw "codex timed out after $TimeoutSeconds seconds."
-    }
-
-    # Preferred: the file Codex was told to save here. Fallback: Codex's own generated_images store.
-    # codex exec has already exited, so the file is either there now or never will be:
-    # use a short grace period instead of polling for the full timeout.
-    $saved = $TimeoutSeconds
-    $script:TimeoutSeconds = 6
-    try {
-        $image = Wait-ForImage @($scratch) $started.AddSeconds(-5)
-        if (-not $image) { $image = Wait-ForImage @((Join-Path $codexHome "generated_images")) $started.AddSeconds(-5) -Recurse }
-    }
-    finally { $script:TimeoutSeconds = $saved }
-    if (-not $image) {
-        $err = if (Test-Path $stderr) { (Get-Content $stderr -Raw) } else { "" }
-        $out = if (Test-Path $stdout) { (Get-Content $stdout -Raw) } else { "" }
-        throw "No image produced by codex (exit $($proc.ExitCode)). stdout: $out stderr: $err"
-    }
-    return $image
-}
-
 # --- Backends: openai (API key) and local (OpenAI-compatible server) ------------------
-function Invoke-ImagesApi([string]$Desc, [string]$Base, [string]$Key, [string]$Model, [string]$Tag) {
+function Invoke-ImagesApi([string]$Desc, [string]$Base, [string]$Key, [string]$ModelName, [string]$Tag) {
     Add-Type -AssemblyName System.Net.Http
     $client = New-Object System.Net.Http.HttpClient
     $client.Timeout = [TimeSpan]::FromSeconds($TimeoutSeconds)
@@ -452,19 +451,18 @@ function Invoke-ImagesApi([string]$Desc, [string]$Base, [string]$Key, [string]$M
     try {
         if ($refs.Count -gt 0) {
             $form = New-Object System.Net.Http.MultipartFormDataContent
-            if ($Model) { $form.Add((New-Object System.Net.Http.StringContent($Model)), "model") }
+            if ($ModelName) { $form.Add((New-Object System.Net.Http.StringContent($ModelName)), "model") }
             $form.Add((New-Object System.Net.Http.StringContent($Desc, [Text.Encoding]::UTF8)), "prompt")
             foreach ($r in $refs) {
                 $part = New-Object System.Net.Http.ByteArrayContent(, [IO.File]::ReadAllBytes($r))
-                $mime = switch ([IO.Path]::GetExtension($r).ToLower()) { '.jpg' { 'image/jpeg' } '.jpeg' { 'image/jpeg' } '.webp' { 'image/webp' } default { 'image/png' } }
-                $part.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse($mime)
+                $part.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse((Get-MimeType $r))
                 $form.Add($part, "image[]", [IO.Path]::GetFileName($r))
             }
             $resp = $client.PostAsync("$Base/images/edits", $form).GetAwaiter().GetResult()
         }
         else {
             $payload = @{ prompt = $Desc; n = 1 }
-            if ($Model) { $payload.model = $Model }
+            if ($ModelName) { $payload.model = $ModelName }
             $json = $payload | ConvertTo-Json -Compress
             $content = New-Object System.Net.Http.StringContent($json, [Text.Encoding]::UTF8, "application/json")
             $resp = $client.PostAsync("$Base/images/generations", $content).GetAwaiter().GetResult()
@@ -480,24 +478,76 @@ function Invoke-ImagesApi([string]$Desc, [string]$Base, [string]$Key, [string]$M
         else { throw "$Tag images API returned neither b64_json nor url: $body" }
     }
     finally { $client.Dispose() }
-
-    $ext = if ($bytes.Length -gt 2 -and $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xD8) { "jpg" } else { "png" }
-    $tmp = Join-Path $workDir ("api-" + [guid]::NewGuid().ToString("N").Substring(0, 8) + "." + $ext)
-    [IO.File]::WriteAllBytes($tmp, $bytes)
-    return (Get-Item $tmp)
+    return (Save-Bytes $bytes)
 }
 
 function Invoke-OpenAI([string]$Desc) {
-    $key = Get-OpenAIKey
+    $key = Get-ApiKey "openai"
     if (-not $key) { throw "Not signed in to OpenAI. Run the script with -Login once (or set OPENAI_API_KEY)." }
     $base = if ($env:OPENAI_BASE_URL) { $env:OPENAI_BASE_URL } else { "https://api.openai.com/v1" }
-    $model = if ($env:OPENAI_IMAGE_MODEL) { $env:OPENAI_IMAGE_MODEL } else { "gpt-image-2" }
-    return Invoke-ImagesApi $Desc $base $key $model "OpenAI"
+    $m = if ($Model) { $Model } elseif ($env:OPENAI_IMAGE_MODEL) { $env:OPENAI_IMAGE_MODEL } else { "gpt-image-2" }
+    return Invoke-ImagesApi $Desc $base $key $m "OpenAI"
 }
 
 function Invoke-Local([string]$Desc) {
     if (-not $env:IMAGEGEN_LOCAL_URL) { throw "IMAGEGEN_LOCAL_URL is not set. Point it at a local OpenAI-compatible image server, e.g. http://127.0.0.1:8080/v1" }
-    return Invoke-ImagesApi $Desc $env:IMAGEGEN_LOCAL_URL $null $env:IMAGEGEN_LOCAL_MODEL "Local"
+    $m = if ($Model) { $Model } else { $env:IMAGEGEN_LOCAL_MODEL }
+    return Invoke-ImagesApi $Desc $env:IMAGEGEN_LOCAL_URL $null $m "Local"
+}
+
+# --- Backend: gemini (Gemini API: Gemini image models and Imagen) --------------------
+function Invoke-GeminiApi([string]$Desc) {
+    $key = Get-ApiKey "gemini"
+    if (-not $key) { throw "Not signed in to Gemini. Run the script with -Login -Provider gemini once (or set GEMINI_API_KEY)." }
+    $m = if ($Model) { $Model } elseif ($env:GEMINI_IMAGE_MODEL) { $env:GEMINI_IMAGE_MODEL } else { "gemini-2.5-flash-image" }
+    $base = "https://generativelanguage.googleapis.com/v1beta/models/$m"
+    $headers = @{ "x-goog-api-key" = $key }
+
+    try {
+        if ($m -like "imagen*") {
+            if ($refs.Count -gt 0) { throw "Imagen models don't take reference images. Use a Gemini image model (e.g. gemini-2.5-flash-image) or drop -Reference." }
+            $body = @{ instances = @(@{ prompt = $Desc }); parameters = @{ sampleCount = 1 } } | ConvertTo-Json -Depth 6 -Compress
+            $resp = Invoke-RestMethod -Method Post -Uri "${base}:predict" -Headers $headers -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec $TimeoutSeconds
+            $b64 = @($resp.predictions)[0].bytesBase64Encoded
+            if (-not $b64) { throw "Imagen returned no image (it may have been filtered). Response: $($resp | ConvertTo-Json -Depth 4 -Compress)" }
+        }
+        else {
+            $parts = @(@{ text = $Desc })
+            foreach ($r in $refs) { $parts += @{ inline_data = @{ mime_type = (Get-MimeType $r); data = [Convert]::ToBase64String([IO.File]::ReadAllBytes($r)) } } }
+            $body = @{ contents = @(@{ parts = $parts }); generationConfig = @{ responseModalities = @("TEXT", "IMAGE") } } | ConvertTo-Json -Depth 8 -Compress
+            $resp = Invoke-RestMethod -Method Post -Uri "${base}:generateContent" -Headers $headers -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec $TimeoutSeconds
+            $b64 = $null
+            foreach ($p in @($resp.candidates)[0].content.parts) {
+                if ($p.inlineData -and $p.inlineData.data) { $b64 = $p.inlineData.data; break }
+                if ($p.inline_data -and $p.inline_data.data) { $b64 = $p.inline_data.data; break }
+            }
+            if (-not $b64) {
+                $said = (@($resp.candidates)[0].content.parts | Where-Object { $_.text } | ForEach-Object { $_.text }) -join " "
+                throw "Gemini returned no image. It said: $said"
+            }
+        }
+    }
+    catch {
+        $detail = ""
+        try { $detail = (New-Object IO.StreamReader($_.Exception.Response.GetResponseStream())).ReadToEnd() } catch { }
+        throw ("Gemini API error: " + $_.Exception.Message + $(if ($detail) { " $detail" }))
+    }
+    return (Save-Bytes ([Convert]::FromBase64String($b64)))
+}
+
+# --- Backend: pollinations (free public service, no key) -----------------------------
+function Invoke-Pollinations([string]$Desc) {
+    if ($refs.Count -gt 0) { throw "The pollinations backend doesn't take reference images. Use agy, gemini, openai or local." }
+    $m = if ($Model) { $Model } elseif ($env:POLLINATIONS_MODEL) { $env:POLLINATIONS_MODEL } else { "flux" }
+    $url = "https://image.pollinations.ai/prompt/" + [Uri]::EscapeDataString($Desc) + "?model=" + [Uri]::EscapeDataString($m) + "&width=1024&height=1024&nologo=true&seed=" + (Get-Random -Maximum 999999)
+    $tmp = Join-Path $workDir ("poll-" + [guid]::NewGuid().ToString("N").Substring(0, 8) + ".bin")
+    try { Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing -TimeoutSec $TimeoutSeconds | Out-Null }
+    catch {
+        $code = try { [int]$_.Exception.Response.StatusCode } catch { 0 }
+        $hint = if ($code -in 402, 429) { " The free anonymous tier has a usage limit and is rate-limited right now; wait a while or use another backend (agy, gemini, openai, local)." } else { "" }
+        throw "Pollinations request failed: $($_.Exception.Message).$hint"
+    }
+    return (Save-Bytes ([IO.File]::ReadAllBytes($tmp)))
 }
 
 # --- Backend choice for -Backend auto ------------------------------------------------
@@ -507,22 +557,25 @@ function Select-Backend([string]$Desc) {
     if ($enabled.Count -eq 1) { return $enabled[0] }
 
     # Text-heavy or precise-layout requests, and edits of reference images, go to OpenAI first;
-    # everything else goes to Gemini first. A local model is the last resort unless the request is a quick draft.
+    # everything else goes to Gemini (agy) first. Local/free models are the choice for quick drafts.
     $precise = ($refs.Count -gt 0) -or ($Desc -match '(?i)\b(text|logo|typograph|lettering|poster|sign|label|diagram|infographic|ui|screenshot|mockup|icon|slide|menu)\b')
     $draft = $Desc -match '(?i)\b(draft|sketch|rough|quick|placeholder)\b'
-    $order = if ($draft -and $enabled -contains "local") { @("local", "agy", "openai", "codex") }
-             elseif ($precise) { @("openai", "codex", "agy", "local") }
-             else { @("agy", "openai", "codex", "local") }
+    $order = if ($draft) { @("local", "pollinations", "agy", "gemini", "openai") }
+             elseif ($precise) { @("openai", "gemini", "agy", "local", "pollinations") }
+             else { @("agy", "gemini", "openai", "local", "pollinations") }
+    # Pollinations can't take references.
+    if ($refs.Count -gt 0) { $order = @($order | Where-Object { $_ -ne "pollinations" }) }
     foreach ($b in $order) { if ($enabled -contains $b) { return $b } }
     return $enabled[0]
 }
 
 function New-OneImage([string]$Desc, [string]$Chosen) {
     switch ($Chosen) {
-        "codex"  { return Invoke-Codex $Desc }
-        "openai" { return Invoke-OpenAI $Desc }
-        "local"  { return Invoke-Local $Desc }
-        default  { return Invoke-Agy $Desc }
+        "openai"       { return Invoke-OpenAI $Desc }
+        "gemini"       { return Invoke-GeminiApi $Desc }
+        "pollinations" { return Invoke-Pollinations $Desc }
+        "local"        { return Invoke-Local $Desc }
+        default        { return Invoke-Agy $Desc }
     }
 }
 

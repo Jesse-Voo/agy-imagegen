@@ -2,8 +2,8 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "agy-imagegen",
   "displayName": "Image Generation",
-  "version": "1.2.0",
-  "description": "Generate images from a text description with Gemini (agy) or OpenAI gpt-image-2 (Codex) and save them exactly where you want.",
+  "version": "1.3.0",
+  "description": "Generate images from a text description with Gemini (agy or API key), OpenAI (API key), the free Pollinations service or a local model, and save them exactly where you want.",
   "logo": "./assets/logo.png",
   "suggestedPrompts": [
     "Generate an image of a red fox in a snowy forest, watercolor style.",
@@ -17,5 +17,5 @@
   "homepage": "https://github.com/Jesse-Voo/agy-imagegen",
   "repository": "https://github.com/Jesse-Voo/agy-imagegen",
   "license": "MIT",
-  "keywords": ["image-generation", "gemini", "openai", "codex", "antigravity", "images"]
+  "keywords": ["image-generation", "gemini", "openai", "pollinations", "antigravity", "images"]
 }
