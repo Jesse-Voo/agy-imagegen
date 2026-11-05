@@ -156,7 +156,10 @@ npm install
 claude mcp add generate-image -- node "$PWD\index.js"
 ```
 
-This exposes one tool, `generate_image(description, output_path?, backend?)`, which runs the same script.
+This exposes two tools:
+
+- `generate_image(description, output_path?, backend?, model?, count?, descriptions?, reference_images?)` runs the same script and **returns the image itself** (a JPEG preview) next to the saved path, so chat apps can show it.
+- `check_image_job(job_id)`: tool calls are often cut off after ~60 s, so `generate_image` waits ~45 s (`IMAGEGEN_MCP_WAIT_SECONDS`) and then returns a job id while the image keeps generating. The agent collects it with `check_image_job` instead of generating again.
 
 ## Usage
 

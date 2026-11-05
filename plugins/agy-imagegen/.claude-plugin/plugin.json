@@ -1,7 +1,7 @@
 {
   "name": "agy-imagegen",
   "description": "Generate images with Gemini (Antigravity or API key), OpenAI (API key), the free Pollinations service or a local model, and save them where you want. Works in Claude Code, Codex and Antigravity.",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "author": { "name": "Jesse-Voo" },
   "license": "MIT",
   "keywords": ["image-generation", "gemini", "antigravity", "agy", "windows"]

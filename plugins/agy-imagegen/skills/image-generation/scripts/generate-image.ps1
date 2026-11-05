@@ -121,10 +121,40 @@ param(
     [ValidateSet("openai", "gemini")]
     [string]$Provider = "openai",
     [switch]$NoVerify,
+    [string]$PreviewFor,
     [int]$TimeoutSeconds = 300
 )
 
 $ErrorActionPreference = "Stop"
+
+# --- Mode: make a small JPEG preview of an image (for showing it in a chat) ------------
+if ($PreviewFor) {
+    if (-not (Test-Path $PreviewFor -PathType Leaf)) { Write-Error "File not found: $PreviewFor"; exit 1 }
+    Add-Type -AssemblyName System.Drawing
+    $src = [System.Drawing.Image]::FromFile((Resolve-Path $PreviewFor).Path)
+    try {
+        $max = 1024
+        $scale = [Math]::Min(1.0, $max / [Math]::Max($src.Width, $src.Height))
+        $w = [Math]::Max(1, [int]($src.Width * $scale)); $h = [Math]::Max(1, [int]($src.Height * $scale))
+        $bmp = New-Object System.Drawing.Bitmap($w, $h)
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.Clear([System.Drawing.Color]::White)
+        $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $g.DrawImage($src, 0, 0, $w, $h)
+        $g.Dispose()
+        $dir = Join-Path $env:TEMP "agy-imagegen\preview"
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        $out = Join-Path $dir ("preview-" + [guid]::NewGuid().ToString("N").Substring(0, 8) + ".jpg")
+        $enc = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" }
+        $ep = New-Object System.Drawing.Imaging.EncoderParameters(1)
+        $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, [long]82)
+        $bmp.Save($out, $enc, $ep)
+        $bmp.Dispose()
+    }
+    finally { $src.Dispose() }
+    Write-Output $out
+    return
+}
 
 # --- Locating agy --------------------------------------------------------------------
 function Find-Agy {
@@ -433,6 +463,13 @@ function Invoke-Agy([string]$Desc) {
     if (-not $result -or -not $result.conversation_id) {
         $err = if (Test-Path $stderr) { Get-Content $stderr -Raw } else { "" }
         throw "agy returned no usable JSON (exit $($proc.ExitCode)). stdout: $raw stderr: $err"
+    }
+
+    # If agy already reports that generation failed (quota, etc.), don't wait for an image that will never come.
+    if ($result.response -match '(?i)RESOURCE_EXHAUSTED|quota|capacity|rate.?limit|\b429\b|generation failed|could not (create|generate)|no image could be') {
+        $found = Get-ChildItem (Join-Path $brain $result.conversation_id) -File -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -match '^\.(png|jpe?g|webp)$' -and $_.LastWriteTime -ge $started.AddSeconds(-5) } | Select-Object -First 1
+        if (-not $found) { throw "agy could not generate the image: $($result.response)" }
     }
 
     # agy replies before its image subagent always finishes, so poll the conversation folder.

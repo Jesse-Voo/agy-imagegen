@@ -87,3 +87,7 @@ Write it as a vivid, specific description including style, e.g. `a red fox in a 
 ## Optional MCP server
 
 If this repo's `generate_image` MCP tool is available (`plugins/agy-imagegen/mcp`), it does the same thing as flow C: `generate_image(description, output_path?, backend?, model?, count?, descriptions?, reference_images?)`.
+
+- **It returns the image itself** (a JPEG preview as an image block) as well as the saved path(s), so show it to the user in your reply. The path points to the full-size file.
+- **Long generations:** hosts often cut a tool call off at ~60 s, so the tool waits ~45 s and then returns a **job id** while the image keeps generating in the background. When you get a job id, **never call `generate_image` again** (that makes duplicates); call `check_image_job(job_id)` until it returns the image.
+- **When you run the script directly** (no MCP), show the result yourself: view the saved file if your tool can display images, and always report the path. `-PreviewFor <file>` prints the path of a small JPEG preview you can open instead of a huge original.
