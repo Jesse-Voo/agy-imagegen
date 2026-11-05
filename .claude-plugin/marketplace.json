@@ -1,11 +1,14 @@
 {
   "name": "agy-imagegen",
-  "owner": { "name": "Jesse-Voo" },
+  "owner": {
+    "name": "Jesse-Voo"
+  },
   "plugins": [
     {
       "name": "agy-imagegen",
       "source": "./plugins/agy-imagegen",
       "description": "Generate images with Gemini (agy) or OpenAI gpt-image-2 (Codex) and save them where you want. Works in Claude Code, Codex and Antigravity."
     }
-  ]
+  ],
+  "description": "Image generation for Claude Code, Codex and Antigravity: Gemini or OpenAI gpt-image-2, saved exactly where you want."
 }
