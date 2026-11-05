@@ -1,7 +1,7 @@
 {
   "name": "agy-imagegen",
-  "description": "Generate images with Gemini through the Antigravity CLI (agy), headlessly, and save them where you want.",
-  "version": "1.0.0",
+  "description": "Generate images with Gemini (agy) or OpenAI gpt-image-2 (Codex) and save them where you want. Works in Claude Code, Codex and Antigravity.",
+  "version": "1.1.0",
   "author": { "name": "Jesse-Voo" },
   "license": "MIT",
   "keywords": ["image-generation", "gemini", "antigravity", "agy", "windows"]

@@ -1,7 +1,7 @@
 {
   "name": "agy-imagegen",
-  "version": "1.0.0",
-  "description": "Generate images with Gemini through the Antigravity CLI (agy), headlessly, and save them where you want.",
+  "version": "1.1.0",
+  "description": "Generate images with Gemini (agy) or OpenAI gpt-image-2 (Codex) and save them where you want. Works in Claude Code, Codex and Antigravity.",
   "author": {
     "name": "Jesse-Voo",
     "url": "https://github.com/Jesse-Voo"
@@ -9,15 +9,23 @@
   "homepage": "https://github.com/Jesse-Voo/agy-imagegen",
   "repository": "https://github.com/Jesse-Voo/agy-imagegen",
   "license": "MIT",
-  "keywords": ["image-generation", "gemini", "antigravity", "agy", "windows"],
+  "keywords": [
+    "image-generation",
+    "gemini",
+    "antigravity",
+    "agy",
+    "windows"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Image Generation (agy)",
-    "shortDescription": "Generate images with Gemini via the Antigravity CLI",
-    "longDescription": "Turns a text description into an image file by driving the Antigravity CLI (agy) headlessly. No permission bypass and no window automation: agy generates the image and a wrapper script copies it to the path you choose, converting between PNG, JPEG, BMP and GIF if needed. Windows + PowerShell; requires agy installed and signed in.",
+    "shortDescription": "Generate images with OpenAI or Gemini and save them where you want",
+    "longDescription": "Turns a text description into an image file. Inside Codex it uses Codex's own image generation (gpt-image-2) and places the file where you ask; it can also drive the Antigravity CLI (agy) for Gemini. No permission bypass and no window automation: a wrapper script copies the result to your chosen path, converting between PNG, JPEG, BMP and GIF if needed. Windows + PowerShell.",
     "developerName": "Jesse-Voo",
     "category": "Design",
-    "capabilities": ["Write"],
+    "capabilities": [
+      "Write"
+    ],
     "websiteURL": "https://github.com/Jesse-Voo/agy-imagegen",
     "defaultPrompt": [
       "Generate an image of a red fox in a snowy forest, watercolor style.",

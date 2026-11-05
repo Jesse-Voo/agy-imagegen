@@ -17,7 +17,7 @@ const SCRIPT_PATH = path.resolve(
 
 const server = new McpServer({
   name: "generate-image",
-  version: "1.0.0",
+  version: "1.1.0",
 });
 
 server.registerTool(
@@ -25,8 +25,9 @@ server.registerTool(
   {
     title: "Generate image",
     description:
-      "Generate an image using the Antigravity CLI (agy) and save it to disk. " +
-      "Runs agy headlessly and copies the result to output_path. If no output_path " +
+      "Generate an image and save it to disk, using Gemini (Antigravity CLI, backend 'agy') " +
+      "or OpenAI gpt-image-2 (Codex CLI, backend 'codex'). Runs the backend headlessly and " +
+      "copies the result to output_path. If no output_path " +
       "is given, saves to the default folder (<Pictures>\\Generated, or AGY_IMAGE_DIR) " +
       "with an auto-generated filename. Returns the saved path. Can take a minute or two.",
     inputSchema: {
@@ -40,11 +41,19 @@ server.registerTool(
           "Optional. Full destination path including filename, e.g. C:\\Users\\me\\Pictures\\fox.png. " +
             "Omit it if the user didn't say where to save. Missing parent folders are created."
         ),
+      backend: z
+        .enum(["agy", "codex"])
+        .optional()
+        .describe(
+          "Optional. 'agy' = Gemini via Antigravity CLI, 'codex' = OpenAI gpt-image-2 via Codex CLI. " +
+            "Omit to use IMAGEGEN_BACKEND or the default (agy). Ask the user if both are installed and they have a preference."
+        ),
     },
   },
-  async ({ description, output_path }) => {
+  async ({ description, output_path, backend }) => {
     const args = ["-NoProfile", "-File", SCRIPT_PATH, "-Description", description];
     if (output_path) args.push("-OutputPath", output_path);
+    if (backend) args.push("-Backend", backend);
 
     const result = await new Promise((resolve) => {
       const proc = spawn("powershell.exe", args, { windowsHide: true });
